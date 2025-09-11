@@ -1,0 +1,31 @@
+{
+  "name": "mcp-yfinance-server",
+  "version": "0.1.0",
+  "description": "MCP server for Yahoo Finance stock data",
+  "main": "mcp_yfinance_server.py",
+  "scripts": {
+    "start": "python mcp_yfinance_server.py"
+  },
+  "mcp": {
+    "server": {
+      "command": "/Users/andrechuabio/MCP quant/.venv/bin/python",
+      "args": [
+        "/Users/andrechuabio/MCP quant/mcp_yfinance_server.py"
+      ]
+    }
+  },
+  "tools": [
+    {
+      "name": "get_stock_price",
+      "description": "Get current stock price and basic trading info"
+    },
+    {
+      "name": "get_stock_history",
+      "description": "Get historical price data for a stock"
+    },
+    {
+      "name": "get_stock_info",
+      "description": "Get detailed company information and metrics"
+    }
+  ]
+}
