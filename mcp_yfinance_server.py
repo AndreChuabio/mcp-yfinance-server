@@ -441,13 +441,14 @@ async def place_buy_order(symbol: str, shares: float) -> list[TextContent]:
             raise ValueError(f"Cannot get current price for {symbol}")
         current_price = hist['Close'].iloc[-1]
 
-        # Create order payload for Paper Invest API
+        # Create order payload for Paper Invest API (corrected structure)
         order_data = {
+            "accountId": PAPER_ACCOUNT_ID,
             "portfolioId": PAPER_PORTFOLIO_ID,
             "symbol": symbol,
             "assetClass": "EQUITY",
-            "orderType": "MARKET",  # Using market order for simplicity
-            "positionIntent": "BUY_TO_OPEN",
+            "side": "BUY_TO_OPEN",
+            "type": "MARKET",
             "quantity": shares,
             "timeInForce": "DAY"
         }
@@ -513,13 +514,14 @@ async def place_sell_order(symbol: str, shares: float) -> list[TextContent]:
             raise ValueError(f"Cannot get current price for {symbol}")
         current_price = hist['Close'].iloc[-1]
 
-        # Create order payload for Paper Invest API
+        # Create order payload for Paper Invest API (corrected structure)
         order_data = {
+            "accountId": PAPER_ACCOUNT_ID,
             "portfolioId": PAPER_PORTFOLIO_ID,
             "symbol": symbol,
             "assetClass": "EQUITY",
-            "orderType": "MARKET",  # Using market order for simplicity
-            "positionIntent": "SELL_TO_CLOSE",  # Assuming we're closing a position
+            "side": "SELL_TO_CLOSE",
+            "type": "MARKET",
             "quantity": shares,
             "timeInForce": "DAY"
         }
