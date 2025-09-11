@@ -57,3 +57,8 @@ Thumbs.db
 .pytest_cache/
 .coverage
 htmlcov/
+
+# Prompts and AI instructions
+prompts/
+.github/prompts/
+*.instructions.md
