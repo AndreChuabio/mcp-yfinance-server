@@ -1,14 +1,20 @@
-# MCP YFinance Server - Simple POC
+# MCP YFinance Server - Simple POC with Paper Trading
 
-A minimal MCP (Model Context Protocol) server that provides stock data tools using yfinance for financial data queries.
+A minimal MCP (Model Context Protocol) server that provides stock data tools using yfinance for financial data queries and basic paper trading functionality.
 
 ## 🌟 Features
 
-This MCP server provides three core tools for financial data analysis:
+This MCP server provides stock data analysis and paper trading tools:
 
+### Stock Data Tools
 1. **get_stock_price** - Get current stock price and basic trading information
 2. **get_stock_history** - Get historical price data for specified date ranges  
 3. **get_stock_info** - Get detailed company information and key financial metrics
+
+### Paper Trading Tools (NEW!)
+4. **get_portfolio_balance** - View your paper trading portfolio balance and positions
+5. **place_buy_order** - Execute a buy order in your paper trading account  
+6. **place_sell_order** - Execute a sell order in your paper trading account
 
 ## 🚀 Quick Start
 
@@ -26,11 +32,11 @@ This MCP server provides three core tools for financial data analysis:
 
 2. **The virtual environment and dependencies are already set up!**
    - Virtual environment: `.venv/`
-   - Required packages: `mcp`, `yfinance`, `pydantic`
+   - Required packages: `mcp`, `yfinance`, `pydantic`, `requests`, `python-dotenv`
 
 3. **Test the server:**
    ```bash
-   .venv/bin/python test_server.py
+   .venv/bin/python test_paper_trading.py
    ```
 
 ### Running the MCP Server
@@ -44,6 +50,8 @@ This MCP server provides three core tools for financial data analysis:
 Use the provided `claude_desktop_config.json` configuration file.
 
 ## 🛠 Tools Documentation
+
+### Stock Data Tools
 
 ### 1. get_stock_price
 Get current stock price and basic trading information.
@@ -139,6 +147,83 @@ MCP quant/
         └── mcp-yfinance.prompt.md  # Original requirements
 ```
 
+...
+```
+
+### Paper Trading Tools
+
+### 4. get_portfolio_balance
+View your current paper trading portfolio balance and positions.
+
+**Parameters:** None
+
+**Example Output:**
+```
+💰 Paper Trading Portfolio
+
+💵 Cash Balance: $97,712.88
+📈 Position Value: $2,287.12
+🏦 Total Portfolio Value: $100,000.00
+
+📊 Current Positions:
+• AAPL: 10 shares @ $228.71 (Avg Cost: $228.71, P&L: $+0.00 [+0.0%])
+
+📋 Recent Orders: 1 total
+```
+
+### 5. place_buy_order
+Execute a buy order for a specified stock and number of shares.
+
+**Parameters:**
+- `symbol` (string, required): Stock ticker symbol
+- `shares` (number, required): Number of shares to buy
+
+**Example Output:**
+```
+✅ Buy Order Executed
+
+Symbol: AAPL
+Shares: 10
+Price: $228.71
+Total Cost: $2287.12
+
+Updated Portfolio:
+Cash Balance: $97,712.88
+AAPL Position: 10 shares @ $228.71 avg cost
+```
+
+### 6. place_sell_order
+Execute a sell order for a specified stock and number of shares.
+
+**Parameters:**
+- `symbol` (string, required): Stock ticker symbol  
+- `shares` (number, required): Number of shares to sell
+
+**Example Output:**
+```
+✅ Sell Order Executed
+
+Symbol: AAPL
+Shares: 5
+Price: $228.71
+Total Proceeds: $1143.56
+P&L: $+0.00 (+0.0%)
+
+Updated Portfolio:
+Cash Balance: $98,856.44
+AAPL Position: 5 shares remaining
+```
+
+## 📈 Paper Trading Features
+
+- **$100,000 Starting Balance** - Begin with realistic capital
+- **Real-time Pricing** - Uses current market prices from yfinance
+- **Position Tracking** - Automatic P&L calculation and position management
+- **Order History** - Track all your trades
+- **Risk-free Trading** - Perfect for learning and strategy testing
+
+**Note:** This is a POC implementation using in-memory storage. Positions reset when the server restarts.
+
 ## 🎯 Success Criteria Met
 
 ✅ **Server starts without errors** - Tested and verified  
@@ -146,6 +231,9 @@ MCP quant/
 ✅ **Graceful error handling for invalid symbols** - Proper error messages  
 ✅ **Easy integration with Claude Desktop** - Configuration provided  
 ✅ **Simple and functional POC** - Clean, focused implementation  
+✅ **Paper trading functionality** - Buy/sell orders and portfolio tracking
+✅ **Real-time pricing integration** - Live stock prices for trading decisions
+✅ **Portfolio management** - Balance tracking and P&L calculations
 
 ## 🔧 Technical Details
 

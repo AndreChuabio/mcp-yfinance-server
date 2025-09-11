@@ -1,55 +1,44 @@
 #!/usr/bin/env python3
 """
-Test if VS Code can communicate with our MCP server
+Test MCP server with paper trading integration
 """
 
-import mcp_yfinance_server as server
 import asyncio
-import sys
-import os
-
-# Add current directory to path
-current_dir = "/Users/andrechuabio/MCP quant"
-sys.path.insert(0, current_dir)
+import json
+from mcp_yfinance_server import server, handle_call_tool
 
 
-async def test_mcp_functions():
-    """Test all MCP server functions to make sure they work"""
+async def test_mcp_paper_trading():
+    """Test MCP server paper trading tools"""
+    print("🚀 Testing MCP Paper Trading Integration\n")
 
-    print("🧪 Testing MCP Server Functions for VS Code Integration")
-    print("=" * 60)
+    # Test portfolio balance
+    print("1️⃣ Getting portfolio balance...")
+    result = await handle_call_tool("get_portfolio_balance", {})
+    print(result[0].text)
+    print("\n" + "="*50 + "\n")
 
-    # Test 1: Stock Price
-    print("\n📈 Test 1: Getting Apple Stock Price")
-    try:
-        result = await server.get_stock_price("AAPL")
-        print("✅ SUCCESS - Apple data retrieved!")
-        print(result[0].text[:200] + "...")
-    except Exception as e:
-        print(f"❌ ERROR: {e}")
+    # Test stock price (existing functionality)
+    print("2️⃣ Getting TSLA stock price...")
+    result = await handle_call_tool("get_stock_price", {"symbol": "TSLA"})
+    text_content = result[0].text
+    print(text_content[:300] + "..." if len(text_content)
+          > 300 else text_content)
+    print("\n" + "="*50 + "\n")
 
-    # Test 2: Historical Data
-    print("\n📊 Test 2: Getting Tesla Historical Data")
-    try:
-        result = await server.get_stock_history("TSLA", "1mo")
-        print("✅ SUCCESS - Tesla history retrieved!")
-        print(result[0].text[:200] + "...")
-    except Exception as e:
-        print(f"❌ ERROR: {e}")
+    # Test buy order
+    print("3️⃣ Placing buy order for TSLA...")
+    result = await handle_call_tool("place_buy_order", {"symbol": "TSLA", "shares": 5})
+    print(result[0].text)
+    print("\n" + "="*50 + "\n")
 
-    # Test 3: Company Info
-    print("\n🏢 Test 3: Getting Microsoft Company Info")
-    try:
-        result = await server.get_stock_info("MSFT")
-        print("✅ SUCCESS - Microsoft info retrieved!")
-        print(result[0].text[:200] + "...")
-    except Exception as e:
-        print(f"❌ ERROR: {e}")
+    # Test portfolio balance after trade
+    print("4️⃣ Portfolio after buying TSLA...")
+    result = await handle_call_tool("get_portfolio_balance", {})
+    print(result[0].text)
+    print("\n" + "="*50 + "\n")
 
-    print("\n" + "=" * 60)
-    print("🎯 MCP Server Status: FULLY OPERATIONAL")
-    print("📡 Ready for AI Assistant Integration")
-    print("💡 The server works - it's just VS Code extensions that are tricky!")
+    print("✅ MCP Paper Trading Integration Test Complete!")
 
 if __name__ == "__main__":
-    asyncio.run(test_mcp_functions())
+    asyncio.run(test_mcp_paper_trading())
