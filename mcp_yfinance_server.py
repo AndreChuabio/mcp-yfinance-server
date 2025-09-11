@@ -61,8 +61,7 @@ async def get_jwt_token():
 
     return _jwt_token
 
-# Remove the simple in-memory portfolio (no longer needed)
-# PAPER_PORTFOLIO = {...}
+# Using REAL Paper Invest API only - no simulation!
 
 # register tools
 
@@ -376,18 +375,13 @@ async def get_portfolio_balance() -> list[TextContent]:
 
         if response.status_code == 404:
             # No orders yet - empty portfolio
-            result = f"""💰 **Paper Trading Portfolio**
+            result = f"""💰 **REAL Paper Invest Portfolio**
 
-**💵 Cash Balance:** $100,000.00 (estimated)
-**📈 Position Value:** $0.00
-**🏦 Total Portfolio Value:** $100,000.00
+**💵 Account Status:** Connected to Paper Invest
+**📊 Portfolio ID:** {PAPER_PORTFOLIO_ID}
+**� Orders:** No orders found yet
 
-**📊 Current Positions:**
-No positions currently held.
-
-**📋 Recent Orders:** 0 total
-
-*Note: Using Paper Invest API - actual balances may vary*
+**✅ This is your REAL Paper Invest account - orders will be executed for real!**
 """
             return [TextContent(type="text", text=result)]
 
