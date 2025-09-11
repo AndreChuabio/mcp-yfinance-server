@@ -1,6 +1,20 @@
 # MCP YFinance Server - Simple POC with Paper Trading
 
-A minimal MCP (Model Context Protocol) server that provides stock data tools using yfinance for financial data queries and basic paper trading functionality.
+A minimal MCP (Model Context Protocol) server that provides stock data tools using yfinance for financial data q### 4. get_portfolio_balance
+View your current REAL Paper Invest account balance and positions.
+
+**Parameters:** None
+
+**Example Output:**
+```
+💰 REAL Paper Invest Portfolio
+
+💵 Account Status: Connected to Paper Invest
+📊 Portfolio ID: 4996db29-73b2-42d9-a548-e3034aaa8451
+📋 Orders: Recent orders from your account
+
+✅ This is your REAL Paper Invest account - orders will be executed for real!
+```paper trading functionality.
 
 ## 🌟 Features
 
@@ -11,10 +25,10 @@ This MCP server provides stock data analysis and paper trading tools:
 2. **get_stock_history** - Get historical price data for specified date ranges  
 3. **get_stock_info** - Get detailed company information and key financial metrics
 
-### Paper Trading Tools (NEW!)
-4. **get_portfolio_balance** - View your paper trading portfolio balance and positions
-5. **place_buy_order** - Execute a buy order in your paper trading account  
-6. **place_sell_order** - Execute a sell order in your paper trading account
+### Paper Trading Tools (REAL API!)
+4. **get_portfolio_balance** - View your REAL Paper Invest account balance and positions
+5. **place_buy_order** - Execute a REAL buy order in your Paper Invest account  
+6. **place_sell_order** - Execute a REAL sell order in your Paper Invest account
 
 ## 🚀 Quick Start
 
@@ -184,7 +198,7 @@ Portfolio ID: your_portfolio_id
 ```
 
 ### 5. place_buy_order
-Execute a buy order for a specified stock using your real Paper Invest account.
+Execute a REAL buy order using your actual Paper Invest account.
 
 **Parameters:**
 - `symbol` (string, required): Stock ticker symbol
@@ -194,22 +208,22 @@ Execute a buy order for a specified stock using your real Paper Invest account.
 ```
 ✅ Buy Order Submitted to Paper Invest
 
-Symbol: AAPL
-Shares: 10
+Symbol: NVDA
+Shares: 100
 Order Type: MARKET
-Reference Price: $175.23
-Estimated Cost: $1,752.30
+Reference Price: $176.88
+Estimated Cost: $17,687.50
 
 Paper Invest Order Details:
-Order ID: 73dface8-af91-49c9-991a-5166c2156169
+Order ID: fc96371e-c114-416e-b16c-7fe89ea90429
 Status: RESERVING
-Created: 2024-09-11T10:30:00Z
+Created: 2025-09-11T17:54:54.634Z
 
 ✨ Order has been sent to your real Paper Invest account!
 ```
 
 ### 6. place_sell_order
-Execute a sell order for a specified stock using your real Paper Invest account.
+Execute a REAL sell order using your actual Paper Invest account.
 
 **Parameters:**
 - `symbol` (string, required): Stock ticker symbol  
@@ -219,30 +233,30 @@ Execute a sell order for a specified stock using your real Paper Invest account.
 ```
 ✅ Sell Order Submitted to Paper Invest
 
-Symbol: AAPL
-Shares: 5
+Symbol: PSKY
+Shares: 50
 Order Type: MARKET
-Reference Price: $175.23
-Estimated Proceeds: $876.15
+Reference Price: $15.97
+Estimated Proceeds: $798.50
 
 Paper Invest Order Details:
 Order ID: 84edc9f7-ba82-4a0b-882c-6277c3167280
 Status: RESERVING
-Created: 2024-09-11T10:35:00Z
+Created: 2025-09-11T17:55:00Z
 
 ✨ Order has been sent to your real Paper Invest account!
 ```
 
 ## 📈 Paper Trading Features
 
-- **Real Paper Invest Integration** - Connected to actual Paper Invest API
-- **Live Order Placement** - Real orders placed in your Paper Invest account
+- **REAL Paper Invest Integration** - Connected to your actual Paper Invest API account
+- **LIVE Order Placement** - All orders are placed directly in your real Paper Invest account
 - **JWT Authentication** - Secure API authentication with Paper Invest
-- **Market Orders** - Simplified order types for POC implementation
+- **Market Orders** - Simplified order types using real market execution
 - **Real-time Pricing** - Uses current market prices from yfinance for reference
-- **Risk-free Trading** - Paper money, real market conditions
+- **NO SIMULATION** - All orders are real and will show up in your Paper Invest dashboard
 
-**Note:** This is a POC implementation. Orders are placed in your real Paper Invest account using their paper trading system.
+**IMPORTANT:** This server places REAL orders in your Paper Invest account. No simulation or fake portfolios!
 
 ## 🎯 Success Criteria Met
 
@@ -251,10 +265,11 @@ Created: 2024-09-11T10:35:00Z
 ✅ **Graceful error handling for invalid symbols** - Proper error messages  
 ✅ **Easy integration with Claude Desktop** - Configuration provided  
 ✅ **Simple and functional POC** - Clean, focused implementation  
-✅ **Paper trading functionality** - Real Paper Invest API integration
+✅ **Paper trading functionality** - REAL Paper Invest API integration (no simulation)
 ✅ **Real-time pricing integration** - Live stock prices for trading decisions
-✅ **Portfolio management** - Connected to actual Paper Invest accounts
+✅ **Portfolio management** - Connected to your actual Paper Invest account
 ✅ **JWT Authentication** - Secure API integration with Paper Invest
+✅ **Live order execution** - All orders executed in real Paper Invest account
 
 ## 🔧 Technical Details
 
