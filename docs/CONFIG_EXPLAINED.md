@@ -32,9 +32,16 @@ Think of the MCP configuration like giving someone directions to start your car:
 
 ### 📻 **"env"** = "With these radio presets and seat settings"
 - **What it is:** Environment variables for the program
-- **Why empty:** Our server doesn't need special settings
-- **Car analogy:** "Use default radio stations and seat position"
-- **Technical:** `{}` (empty object = use defaults)
+- **Why needed:** Paper Invest API credentials for real trading
+- **Car analogy:** "Use these specific radio stations and your personal seat settings"
+- **Technical:** 
+  ```json
+  "env": {
+    "paper_API_KEY": "your_paper_invest_api_key",
+    "paper_account_ID": "your_account_id", 
+    "paper_portfolio_ID": "your_portfolio_id"
+  }
+  ```
 
 ## 🎯 What Happens When Started:
 
@@ -42,14 +49,20 @@ Think of the MCP configuration like giving someone directions to start your car:
 2. **MCP System:** "Let me start the financial car..."
 3. **Runs:** Use the special Python key...
 4. **To start:** The yfinance server car...
-5. **With settings:** Default environment...
-6. **Result:** 📈 Live stock data flows!
+5. **With settings:** Your Paper Invest credentials...
+6. **Result:** 📈 Live stock data + real paper trading!
 
 ## 🔧 Command Line Equivalent:
 
 The configuration basically tells the system to run:
 ```bash
+# Set environment variables
+export paper_API_KEY="your_api_key"
+export paper_account_ID="your_account_id" 
+export paper_portfolio_ID="your_portfolio_id"
+
+# Run the server
 /Users/andrechuabio/MCP quant/.venv/bin/python /Users/andrechuabio/MCP quant/mcp_yfinance_server.py
 ```
 
-**Translation:** "Use my special Python (with all the packages) to run my stock server script!"
+**Translation:** "Use my special Python (with all the packages) to run my stock server script with my Paper Invest account!"

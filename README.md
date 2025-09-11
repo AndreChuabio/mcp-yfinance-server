@@ -39,15 +39,23 @@ This MCP server provides stock data analysis and paper trading tools:
    .venv/bin/python test_paper_trading.py
    ```
 
-### Running the MCP Server
+## 🚀 Usage
 
-**For direct testing:**
+### Claude Desktop (Recommended)
+1. Follow the [setup guide](docs/CLAUDE_DESKTOP_SETUP.md)
+2. Use natural language: "Buy 10 shares of AAPL", "What's my portfolio balance?"
+
+### VS Code Development  
 ```bash
-.venv/bin/python mcp_yfinance_server.py
+# Run tests
+.venv/bin/python tests/test_server.py
+
+# Demo all features
+.venv/bin/python tests/demo_complete.py
 ```
 
-**For Claude Desktop integration:**
-Use the provided `claude_desktop_config.json` configuration file.
+- `claude_desktop_config.json` - Claude Desktop configuration  
+- `.env` - Paper Invest API credentials
 
 ## 🛠 Tools Documentation
 
@@ -125,26 +133,31 @@ Financial Metrics:
 The project includes comprehensive tests:
 
 ```bash
-.venv/bin/python test_server.py
+# Test core server functionality
+.venv/bin/python tests/test_server.py
+
+# Test paper trading features
+.venv/bin/python tests/test_paper_trading.py
+
+# Complete demo with all features
+.venv/bin/python tests/demo_complete.py
 ```
 
-This will test all three tools with various stock symbols including:
+This will test all six tools with various stock symbols including:
 - ✅ Valid symbols: AAPL, GOOGL, TSLA
 - ❌ Invalid symbols: Proper error handling
+- 📈 Paper trading: Buy/sell orders and portfolio management
 
 ## 📁 Project Structure
 
 ```
 MCP quant/
-├── mcp_yfinance_server.py      # Main MCP server implementation
-├── test_server.py              # Test script for verification
-├── claude_desktop_config.json  # Configuration for Claude Desktop
-├── mcp.json                    # MCP server configuration
-├── README.md                   # This file
-├── .venv/                      # Python virtual environment
-└── .github/
-    └── prompts/
-        └── mcp-yfinance.prompt.md  # Original requirements
+├── mcp_yfinance_server.py      # Main MCP server
+├── claude_desktop_config.json  # Claude Desktop config
+├── .env                        # API credentials
+├── requirements.txt            # Dependencies
+├── docs/CLAUDE_DESKTOP_SETUP.md # Setup guide
+└── tests/                      # Test scripts
 ```
 
 ...
@@ -153,26 +166,25 @@ MCP quant/
 ### Paper Trading Tools
 
 ### 4. get_portfolio_balance
-View your current paper trading portfolio balance and positions.
+View your current paper trading portfolio balance and positions from your Paper Invest account.
 
 **Parameters:** None
 
 **Example Output:**
 ```
-💰 Paper Trading Portfolio
+💰 Paper Trading Portfolio (Paper Invest)
 
-💵 Cash Balance: $97,712.88
-📈 Position Value: $2,287.12
-🏦 Total Portfolio Value: $100,000.00
+� Portfolio Status:
+Connected to Paper Invest account
+Portfolio ID: your_portfolio_id
 
-📊 Current Positions:
-• AAPL: 10 shares @ $228.71 (Avg Cost: $228.71, P&L: $+0.00 [+0.0%])
+📋 Recent Orders: 5 total
 
-📋 Recent Orders: 1 total
+*Note: Live connection to Paper Invest API*
 ```
 
 ### 5. place_buy_order
-Execute a buy order for a specified stock and number of shares.
+Execute a buy order for a specified stock using your real Paper Invest account.
 
 **Parameters:**
 - `symbol` (string, required): Stock ticker symbol
@@ -180,20 +192,24 @@ Execute a buy order for a specified stock and number of shares.
 
 **Example Output:**
 ```
-✅ Buy Order Executed
+✅ Buy Order Submitted to Paper Invest
 
 Symbol: AAPL
 Shares: 10
-Price: $228.71
-Total Cost: $2287.12
+Order Type: MARKET
+Reference Price: $175.23
+Estimated Cost: $1,752.30
 
-Updated Portfolio:
-Cash Balance: $97,712.88
-AAPL Position: 10 shares @ $228.71 avg cost
+Paper Invest Order Details:
+Order ID: 73dface8-af91-49c9-991a-5166c2156169
+Status: RESERVING
+Created: 2024-09-11T10:30:00Z
+
+✨ Order has been sent to your real Paper Invest account!
 ```
 
 ### 6. place_sell_order
-Execute a sell order for a specified stock and number of shares.
+Execute a sell order for a specified stock using your real Paper Invest account.
 
 **Parameters:**
 - `symbol` (string, required): Stock ticker symbol  
@@ -201,28 +217,32 @@ Execute a sell order for a specified stock and number of shares.
 
 **Example Output:**
 ```
-✅ Sell Order Executed
+✅ Sell Order Submitted to Paper Invest
 
 Symbol: AAPL
 Shares: 5
-Price: $228.71
-Total Proceeds: $1143.56
-P&L: $+0.00 (+0.0%)
+Order Type: MARKET
+Reference Price: $175.23
+Estimated Proceeds: $876.15
 
-Updated Portfolio:
-Cash Balance: $98,856.44
-AAPL Position: 5 shares remaining
+Paper Invest Order Details:
+Order ID: 84edc9f7-ba82-4a0b-882c-6277c3167280
+Status: RESERVING
+Created: 2024-09-11T10:35:00Z
+
+✨ Order has been sent to your real Paper Invest account!
 ```
 
 ## 📈 Paper Trading Features
 
-- **$100,000 Starting Balance** - Begin with realistic capital
-- **Real-time Pricing** - Uses current market prices from yfinance
-- **Position Tracking** - Automatic P&L calculation and position management
-- **Order History** - Track all your trades
-- **Risk-free Trading** - Perfect for learning and strategy testing
+- **Real Paper Invest Integration** - Connected to actual Paper Invest API
+- **Live Order Placement** - Real orders placed in your Paper Invest account
+- **JWT Authentication** - Secure API authentication with Paper Invest
+- **Market Orders** - Simplified order types for POC implementation
+- **Real-time Pricing** - Uses current market prices from yfinance for reference
+- **Risk-free Trading** - Paper money, real market conditions
 
-**Note:** This is a POC implementation using in-memory storage. Positions reset when the server restarts.
+**Note:** This is a POC implementation. Orders are placed in your real Paper Invest account using their paper trading system.
 
 ## 🎯 Success Criteria Met
 
@@ -231,9 +251,10 @@ AAPL Position: 5 shares remaining
 ✅ **Graceful error handling for invalid symbols** - Proper error messages  
 ✅ **Easy integration with Claude Desktop** - Configuration provided  
 ✅ **Simple and functional POC** - Clean, focused implementation  
-✅ **Paper trading functionality** - Buy/sell orders and portfolio tracking
+✅ **Paper trading functionality** - Real Paper Invest API integration
 ✅ **Real-time pricing integration** - Live stock prices for trading decisions
-✅ **Portfolio management** - Balance tracking and P&L calculations
+✅ **Portfolio management** - Connected to actual Paper Invest accounts
+✅ **JWT Authentication** - Secure API integration with Paper Invest
 
 ## 🔧 Technical Details
 
