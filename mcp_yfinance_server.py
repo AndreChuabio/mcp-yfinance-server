@@ -19,6 +19,9 @@ from mcp import Tool
 from mcp.types import TextContent
 from dotenv import load_dotenv
 import requests
+from pymongo import MongoClient
+from pymongo.errors import ConnectionFailure, ServerSelectionTimeoutError
+from bson import json_util
 
 # Load environment variables
 load_dotenv()
@@ -38,6 +41,34 @@ PAPER_PORTFOLIO_ID = os.getenv("paper_portfolio_ID")
 # Paper Invest API settings
 PAPER_BASE_URL = "https://api.paperinvest.io/v1"
 _jwt_token = None  # Will be set when needed
+
+# MongoDB configuration
+MONGODB_URI = os.getenv("MONGODB_URI")
+MONGODB_DATABASE = os.getenv("MONGODB_DATABASE", "portfolio_risk")
+_mongo_client = None  # Global client for connection reuse
+
+
+def get_mongo_client():
+    """Get or create MongoDB client with connection pooling."""
+    global _mongo_client
+
+    if _mongo_client is None:
+        if not MONGODB_URI:
+            raise ValueError("MONGODB_URI environment variable is not set")
+
+        _mongo_client = MongoClient(
+            MONGODB_URI,
+            serverSelectionTimeoutMS=5000,
+            maxPoolSize=10
+        )
+
+    return _mongo_client
+
+
+def get_mongo_database():
+    """Get MongoDB database instance."""
+    client = get_mongo_client()
+    return client[MONGODB_DATABASE]
 
 
 async def get_jwt_token():
@@ -163,6 +194,85 @@ async def handle_list_tools() -> list[Tool]:
                 },
                 "required": ["symbol", "shares"]
             }
+        ),
+        # MongoDB Query Tools
+        Tool(
+            name="query_portfolio_holdings",
+            description="Query portfolio positions from MongoDB. Returns holdings data from the portfolio_risk database.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "symbol": {
+                        "type": "string",
+                        "description": "Optional ticker symbol to filter holdings (e.g., AAPL)"
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Maximum number of results to return (default: 100)",
+                        "default": 100
+                    }
+                },
+                "required": []
+            }
+        ),
+        Tool(
+            name="query_price_history",
+            description="Query historical price data from MongoDB by symbol with date range filtering.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "symbol": {
+                        "type": "string",
+                        "description": "Stock ticker symbol to query (e.g., AAPL, GOOGL)"
+                    },
+                    "start_date": {
+                        "type": "string",
+                        "description": "Start date for price history (YYYY-MM-DD format)"
+                    },
+                    "end_date": {
+                        "type": "string",
+                        "description": "End date for price history (YYYY-MM-DD format)"
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Maximum number of results to return (default: 500)",
+                        "default": 500
+                    }
+                },
+                "required": ["symbol"]
+            }
+        ),
+        Tool(
+            name="query_risk_metrics",
+            description="Query risk calculations (VaR, CVaR, Sharpe, volatility) from MongoDB.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "metric_type": {
+                        "type": "string",
+                        "description": "Filter by metric type (e.g., VaR, CVaR, Sharpe, volatility)"
+                    },
+                    "symbol": {
+                        "type": "string",
+                        "description": "Optional ticker symbol to filter metrics"
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Maximum number of results to return (default: 100)",
+                        "default": 100
+                    }
+                },
+                "required": []
+            }
+        ),
+        Tool(
+            name="list_mongodb_collections",
+            description="List all collections in the portfolio_risk MongoDB database with document counts.",
+            inputSchema={
+                "type": "object",
+                "properties": {},
+                "required": []
+            }
         )
     ]
 
@@ -204,6 +314,26 @@ async def handle_call_tool(name: str, arguments: dict[str, Any]) -> list[TextCon
             if not symbol or not shares:
                 raise ValueError("Symbol and shares are required")
             return await place_sell_order(symbol, shares)
+        # MongoDB Tools
+        elif name == "query_portfolio_holdings":
+            symbol = arguments.get("symbol")
+            limit = arguments.get("limit", 100)
+            return await query_portfolio_holdings(symbol, limit)
+        elif name == "query_price_history":
+            symbol = arguments.get("symbol")
+            if not symbol:
+                raise ValueError("Symbol is required")
+            start_date = arguments.get("start_date")
+            end_date = arguments.get("end_date")
+            limit = arguments.get("limit", 500)
+            return await query_price_history(symbol, start_date, end_date, limit)
+        elif name == "query_risk_metrics":
+            metric_type = arguments.get("metric_type")
+            symbol = arguments.get("symbol")
+            limit = arguments.get("limit", 100)
+            return await query_risk_metrics(metric_type, symbol, limit)
+        elif name == "list_mongodb_collections":
+            return await list_mongodb_collections()
         else:
             raise ValueError(f"Unknown tool: {name}")
 
@@ -562,6 +692,277 @@ async def place_sell_order(symbol: str, shares: float) -> list[TextContent]:
         raise ValueError(error_msg)
     except Exception as e:
         raise ValueError(f"Failed to place sell order: {str(e)}")
+
+
+# MongoDB Query Functions
+
+def find_collection_by_keyword(db, keyword: str):
+    """Find a collection in the database that matches the keyword."""
+    collections = db.list_collection_names()
+    keyword_lower = keyword.lower()
+
+    for coll_name in collections:
+        if keyword_lower in coll_name.lower():
+            return db[coll_name]
+
+    return None
+
+
+async def query_portfolio_holdings(symbol: str = None, limit: int = 100) -> list[TextContent]:
+    """Query portfolio positions from MongoDB."""
+    try:
+        db = get_mongo_database()
+
+        # Find holdings collection
+        collection = find_collection_by_keyword(db, "holdings")
+        if collection is None:
+            collection = find_collection_by_keyword(db, "portfolio")
+
+        if collection is None:
+            return [TextContent(
+                type="text",
+                text="Error: No holdings or portfolio collection found in database. Use list_mongodb_collections to see available collections."
+            )]
+
+        # Build query filter
+        query_filter = {}
+        if symbol:
+            query_filter["$or"] = [
+                {"symbol": symbol.upper()},
+                {"ticker": symbol.upper()},
+                {"Symbol": symbol.upper()},
+                {"Ticker": symbol.upper()}
+            ]
+
+        # Execute query with limit
+        cursor = collection.find(query_filter).limit(limit)
+        results = list(cursor)
+
+        if not results:
+            return [TextContent(
+                type="text",
+                text=f"No holdings found{' for ' + symbol.upper() if symbol else ''}."
+            )]
+
+        # Format results using json_util for BSON serialization
+        formatted_results = json.loads(json_util.dumps(results))
+
+        result_text = f"**Portfolio Holdings** ({len(results)} records)\n\n"
+        result_text += "```json\n"
+        result_text += json.dumps(formatted_results, indent=2)
+        result_text += "\n```"
+
+        return [TextContent(type="text", text=result_text)]
+
+    except ConnectionFailure as e:
+        return [TextContent(type="text", text=f"MongoDB connection failed: {str(e)}")]
+    except ServerSelectionTimeoutError as e:
+        return [TextContent(type="text", text=f"MongoDB server selection timeout: {str(e)}")]
+    except Exception as e:
+        logger.error(f"Error querying portfolio holdings: {str(e)}")
+        return [TextContent(type="text", text=f"Error querying portfolio holdings: {str(e)}")]
+
+
+async def query_price_history(symbol: str, start_date: str = None, end_date: str = None, limit: int = 500) -> list[TextContent]:
+    """Query historical price data from MongoDB."""
+    try:
+        db = get_mongo_database()
+
+        # Find prices collection
+        collection = find_collection_by_keyword(db, "price")
+
+        if collection is None:
+            return [TextContent(
+                type="text",
+                text="Error: No price collection found in database. Use list_mongodb_collections to see available collections."
+            )]
+
+        # Build query filter
+        query_filter = {
+            "$or": [
+                {"symbol": symbol.upper()},
+                {"ticker": symbol.upper()},
+                {"Symbol": symbol.upper()},
+                {"Ticker": symbol.upper()}
+            ]
+        }
+
+        # Add date range filter if provided
+        date_filter = {}
+        if start_date:
+            try:
+                start_dt = datetime.strptime(start_date, "%Y-%m-%d")
+                date_filter["$gte"] = start_dt
+            except ValueError:
+                return [TextContent(type="text", text=f"Invalid start_date format. Use YYYY-MM-DD.")]
+
+        if end_date:
+            try:
+                end_dt = datetime.strptime(end_date, "%Y-%m-%d")
+                date_filter["$lte"] = end_dt
+            except ValueError:
+                return [TextContent(type="text", text=f"Invalid end_date format. Use YYYY-MM-DD.")]
+
+        if date_filter:
+            # Try common date field names
+            query_filter["$and"] = query_filter.get("$and", [])
+            query_filter["$and"].append({
+                "$or": [
+                    {"date": date_filter},
+                    {"Date": date_filter},
+                    {"timestamp": date_filter},
+                    {"Timestamp": date_filter}
+                ]
+            })
+
+        # Execute query with limit and sort by date
+        cursor = collection.find(query_filter).sort(
+            [("date", -1), ("Date", -1)]).limit(limit)
+        results = list(cursor)
+
+        if not results:
+            return [TextContent(
+                type="text",
+                text=f"No price history found for {symbol.upper()}"
+                     + (f" between {start_date} and {end_date}" if start_date or end_date else "")
+            )]
+
+        # Format results using json_util for BSON serialization
+        formatted_results = json.loads(json_util.dumps(results))
+
+        result_text = f"**Price History for {symbol.upper()}** ({len(results)} records)\n\n"
+        result_text += "```json\n"
+        result_text += json.dumps(formatted_results, indent=2)
+        result_text += "\n```"
+
+        return [TextContent(type="text", text=result_text)]
+
+    except ConnectionFailure as e:
+        return [TextContent(type="text", text=f"MongoDB connection failed: {str(e)}")]
+    except ServerSelectionTimeoutError as e:
+        return [TextContent(type="text", text=f"MongoDB server selection timeout: {str(e)}")]
+    except Exception as e:
+        logger.error(f"Error querying price history: {str(e)}")
+        return [TextContent(type="text", text=f"Error querying price history: {str(e)}")]
+
+
+async def query_risk_metrics(metric_type: str = None, symbol: str = None, limit: int = 100) -> list[TextContent]:
+    """Query risk calculations from MongoDB."""
+    try:
+        db = get_mongo_database()
+
+        # Find risk metrics collection
+        collection = find_collection_by_keyword(db, "risk")
+        if collection is None:
+            collection = find_collection_by_keyword(db, "metric")
+
+        if collection is None:
+            return [TextContent(
+                type="text",
+                text="Error: No risk or metrics collection found in database. Use list_mongodb_collections to see available collections."
+            )]
+
+        # Build query filter
+        query_filter = {}
+
+        if metric_type:
+            query_filter["$or"] = [
+                {"metric_type": {"$regex": metric_type, "$options": "i"}},
+                {"metricType": {"$regex": metric_type, "$options": "i"}},
+                {"type": {"$regex": metric_type, "$options": "i"}},
+                {"metric": {"$regex": metric_type, "$options": "i"}}
+            ]
+
+        if symbol:
+            symbol_filter = {
+                "$or": [
+                    {"symbol": symbol.upper()},
+                    {"ticker": symbol.upper()},
+                    {"Symbol": symbol.upper()},
+                    {"Ticker": symbol.upper()}
+                ]
+            }
+            if query_filter:
+                query_filter = {"$and": [query_filter, symbol_filter]}
+            else:
+                query_filter = symbol_filter
+
+        # Execute query with limit
+        cursor = collection.find(query_filter).limit(limit)
+        results = list(cursor)
+
+        if not results:
+            filter_desc = []
+            if metric_type:
+                filter_desc.append(f"type={metric_type}")
+            if symbol:
+                filter_desc.append(f"symbol={symbol.upper()}")
+            filter_str = ", ".join(
+                filter_desc) if filter_desc else "no filters"
+
+            return [TextContent(
+                type="text",
+                text=f"No risk metrics found ({filter_str})."
+            )]
+
+        # Format results using json_util for BSON serialization
+        formatted_results = json.loads(json_util.dumps(results))
+
+        result_text = f"**Risk Metrics** ({len(results)} records)\n\n"
+        result_text += "```json\n"
+        result_text += json.dumps(formatted_results, indent=2)
+        result_text += "\n```"
+
+        return [TextContent(type="text", text=result_text)]
+
+    except ConnectionFailure as e:
+        return [TextContent(type="text", text=f"MongoDB connection failed: {str(e)}")]
+    except ServerSelectionTimeoutError as e:
+        return [TextContent(type="text", text=f"MongoDB server selection timeout: {str(e)}")]
+    except Exception as e:
+        logger.error(f"Error querying risk metrics: {str(e)}")
+        return [TextContent(type="text", text=f"Error querying risk metrics: {str(e)}")]
+
+
+async def list_mongodb_collections() -> list[TextContent]:
+    """List all collections in the portfolio_risk database with document counts."""
+    try:
+        db = get_mongo_database()
+
+        # Get all collection names
+        collection_names = db.list_collection_names()
+
+        if not collection_names:
+            return [TextContent(
+                type="text",
+                text=f"No collections found in database '{MONGODB_DATABASE}'."
+            )]
+
+        result_text = f"**MongoDB Collections in '{MONGODB_DATABASE}'**\n\n"
+        result_text += "| Collection | Document Count |\n"
+        result_text += "|------------|----------------|\n"
+
+        total_docs = 0
+        for coll_name in sorted(collection_names):
+            try:
+                count = db[coll_name].estimated_document_count()
+                total_docs += count
+                result_text += f"| {coll_name} | {count:,} |\n"
+            except Exception as e:
+                result_text += f"| {coll_name} | Error: {str(e)} |\n"
+
+        result_text += f"\n**Total Collections:** {len(collection_names)}\n"
+        result_text += f"**Total Documents:** {total_docs:,}\n"
+
+        return [TextContent(type="text", text=result_text)]
+
+    except ConnectionFailure as e:
+        return [TextContent(type="text", text=f"MongoDB connection failed: {str(e)}")]
+    except ServerSelectionTimeoutError as e:
+        return [TextContent(type="text", text=f"MongoDB server selection timeout: {str(e)}")]
+    except Exception as e:
+        logger.error(f"Error listing collections: {str(e)}")
+        return [TextContent(type="text", text=f"Error listing collections: {str(e)}")]
 
 
 async def main():
