@@ -25,6 +25,7 @@
    }
    ```
 
+
 4. **Restart Claude Desktop**
 
 # Claude Desktop Setup
