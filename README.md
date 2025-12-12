@@ -1,56 +1,72 @@
-# MCP YFinance Server with Sentiment Analysis
+# MCP YFinance Server - Complete Financial Analysis Suite
 
-A financial sentiment analysis server that combines news and social media data to provide real-time sentiment scores for stock tickers.
+A comprehensive MCP (Model Context Protocol) server that combines real-time sentiment analysis, stock data analysis, and paper trading functionality.
 
-## Features
+## 🌟 Features
 
+### Stock Data Analysis
+- Get current stock prices and trading information
+- Historical price data with customizable periods
+- Detailed company information and financial metrics
+
+### Advanced Sentiment Analysis  
 - Real-time sentiment analysis using Google Gemini AI
 - News sentiment from Alpha Vantage and NewsAPI
-- Social sentiment from Reddit (r/wallstreetbets, r/stocks, r/investing)
+- Social media sentiment from Reddit (r/wallstreetbets, r/stocks, r/investing)
 - Intelligent caching to minimize API calls
 - Batch processing for multiple tickers
 - Historical sentiment tracking
 - Trending ticker detection
 
-## Setup
+### Paper Trading (REAL API Integration)
+- View your REAL Paper Invest account balance and positions
+- Execute REAL buy/sell orders in your Paper Invest account
+- JWT authentication with Paper Invest API
+- Live order execution and portfolio management
 
-1. Install dependencies:
-```bash
-cd mcp-server
-npm install
-```
+## 🚀 Quick Start
 
-2. Configure environment variables:
-```bash
-cp .env.example .env
-```
+### Prerequisites
+- Node.js 16+ for sentiment analysis server
+- Python 3.11+ for MCP server (if using Python components)
 
-3. Add your API keys to `.env`:
+### Installation
+
+1. **Clone and navigate to the project:**
+   ```bash
+   cd mcp-server
+   ```
+
+2. **Install Node.js dependencies:**
+   ```bash
+   npm install
+   ```
+
+3. **Configure environment variables:**
+   ```bash
+   cp .env.example .env
+   ```
+
+4. **Add your API keys to `.env`:**
    - `GEMINI_API_KEY`: Get from [Google AI Studio](https://makersuite.google.com/app/apikey)
    - `ALPHA_VANTAGE_API_KEY`: Get from [Alpha Vantage](https://www.alphavantage.co/support/#api-key)
    - `NEWS_API_KEY`: Get from [NewsAPI](https://newsapi.org/register)
+   - `FMP_API_KEY`: Get from [Financial Modeling Prep](https://financialmodelingprep.com/developer/docs)
    - Reddit credentials (optional): Get from [Reddit Apps](https://www.reddit.com/prefs/apps)
 
-4. Start the server:
-```bash
-npm start
-```
+5. **Start the server:**
+   ```bash
+   npm start
+   ```
 
-## API Endpoints
-
-### Health Check
-```bash
-GET /
-```
-
-Returns server status and available endpoints.
+## 📊 Sentiment Analysis API Endpoints
 
 ### Single Ticker Sentiment
 ```bash
 GET /sentiment/ticker/{symbol}?social=true
 ```
 
-Analyzes sentiment for a single ticker.
+Analyzes sentiment for a single ticker with comprehensive source breakdown.
 
 **Parameters:**
 - `symbol`: Stock ticker (e.g., AAPL, TSLA)
@@ -60,7 +76,7 @@ Analyzes sentiment for a single ticker.
 ```json
 {
   "ticker": "AAPL",
-  "timestamp": "2025-12-10T00:00:00Z",
+  "timestamp": "2025-12-12T00:00:00Z",
   "sentiment_score": 0.45,
   "sentiment_label": "positive",
   "confidence": 0.78,
@@ -80,23 +96,12 @@ Analyzes sentiment for a single ticker.
 }
 ```
 
-### Historical Sentiment
-```bash
-GET /sentiment/ticker/{symbol}/history?days=7
-```
-
-Retrieves cached historical sentiment data.
-
-**Parameters:**
-- `symbol`: Stock ticker
-- `days`: Number of days to retrieve (default: 7)
-
 ### Batch Analysis
 ```bash
 POST /sentiment/analyze
 ```
 
-Analyzes multiple tickers simultaneously.
+Analyzes multiple tickers simultaneously for efficient bulk processing.
 
 **Request Body:**
 ```json
@@ -108,92 +113,176 @@ Analyzes multiple tickers simultaneously.
 }
 ```
 
-**Response:**
-```json
-{
-  "AAPL": { "sentiment_score": 0.45, ... },
-  "MSFT": { "sentiment_score": 0.32, ... },
-  "GOOGL": { "sentiment_score": -0.12, ... }
-}
-```
-
-### Trending Tickers
+### Trending Sentiment Detection
 ```bash
 GET /sentiment/trending?tickers=AAPL,TSLA,NVDA&threshold=0.3
 ```
 
-Identifies tickers with significant sentiment shifts.
+Identifies tickers with significant sentiment shifts and momentum.
+
+## 🛠 MCP Tools Documentation
+
+### Stock Data Tools
+
+#### get_stock_price
+Get current stock price and basic trading information.
 
 **Parameters:**
-- `tickers`: Comma-separated list of tickers
-- `threshold`: Minimum absolute sentiment score (default: 0.3)
+- `symbol` (string, required): Stock ticker symbol (e.g., AAPL, GOOGL, TSLA)
 
-## Sentiment Scoring
+#### get_stock_history  
+Get historical price data for specified date ranges.
 
-Scores range from -1 (very negative) to +1 (very positive):
-- **0.2 to 1.0**: Positive sentiment
-- **-0.2 to 0.2**: Neutral sentiment
-- **-1.0 to -0.2**: Negative sentiment
+**Parameters:**
+- `symbol` (string, required): Stock ticker symbol
+- `period` (string, optional): 1d, 5d, 1mo, 3mo, 6mo, 1y, 2y, 5y, 10y, ytd, max (default: 1mo)
 
-## Testing
+#### get_stock_info
+Get detailed company information and key financial metrics.
 
-Run all tests:
+**Parameters:**
+- `symbol` (string, required): Stock ticker symbol
+
+### Paper Trading Tools
+
+#### get_portfolio_balance
+View your current REAL Paper Invest account balance and positions.
+
+**Parameters:** None
+
+#### place_buy_order
+Execute a REAL buy order in your Paper Invest account.
+
+**Parameters:**
+- `symbol` (string, required): Stock ticker symbol
+- `shares` (number, required): Number of shares to buy
+
+#### place_sell_order  
+Execute a REAL sell order in your Paper Invest account.
+
+**Parameters:**
+- `symbol` (string, required): Stock ticker symbol
+- `shares` (number, required): Number of shares to sell
+
+## 📈 Sentiment Scoring System
+
+Sentiment scores range from -1 (very negative) to +1 (very positive):
+- **0.2 to 1.0**: Positive sentiment - Bullish indicators
+- **-0.2 to 0.2**: Neutral sentiment - Mixed signals  
+- **-1.0 to -0.2**: Negative sentiment - Bearish indicators
+
+## 🧪 Testing
+
+### Run Sentiment Analysis Tests:
 ```bash
 npm test
 ```
 
-Or test individual components:
+### Test Individual Components:
 ```bash
-# Start server first
+# Start sentiment server
 npm start
 
 # In another terminal
 node tests/sentiment.test.js
+node tests/health.test.js
 ```
 
-## Architecture
+### Test Paper Trading:
+```bash
+# Test paper trading functionality
+.venv/bin/python tests/test_paper_trading.py
 
-```
-src/
-├── index.js                    # Main server with routes
-└── sentiment/
-    ├── sentimentAnalyzer.js    # Core sentiment logic with Gemini AI
-    ├── newsProvider.js         # Alpha Vantage & NewsAPI integration
-    ├── socialProvider.js       # Reddit API integration
-    └── cache.js                # In-memory caching layer
+# Complete demo with all features
+.venv/bin/python tests/demo_complete.py
 ```
 
-## Performance
+## 🏗 Architecture
 
-- Cached responses reduce API calls by 60%+
-- Single ticker analysis: <2s
-- Batch analysis (5 tickers): <5s
-- Cache TTL: 30 minutes (configurable)
+```
+mcp-server/
+├── src/
+│   ├── index.js                    # Main server with API routes
+│   └── sentiment/
+│       ├── sentimentAnalyzer.js    # Core sentiment logic with Gemini AI
+│       ├── newsProvider.js         # Financial news integration
+│       ├── socialProvider.js       # Social media sentiment
+│       └── cache.js                # Intelligent caching layer
+├── tests/                          # Comprehensive test suite  
+├── mcp_yfinance_server.py         # MCP server implementation
+└── docs/                          # Setup and configuration guides
+```
 
-## Rate Limits
+## ⚡ Performance & Optimization
 
-Free tier limits:
-- Gemini AI: 60 requests/minute
+- **Intelligent Caching**: Reduces API calls by 60%+ with 30-minute TTL
+- **Batch Processing**: Analyze 5 tickers in under 5 seconds
+- **Rate Limiting**: Respects all API limits and provides fallback strategies
+- **Async Architecture**: Non-blocking operations for optimal performance
+
+## 🔒 API Rate Limits & Management
+
+**Free Tier Limits:**
+- Gemini AI: 60 requests/minute  
 - Alpha Vantage: 25 requests/day
 - NewsAPI: 100 requests/day
 - Reddit: 60 requests/minute
+- Financial Modeling Prep: 250 requests/day
 
-## Limitations
+**Rate Limit Strategies:**
+- Automatic fallback to VADER sentiment when Gemini is rate limited
+- Intelligent caching prevents duplicate API calls
+- Batch processing optimizes API usage
+- Graceful degradation when services are unavailable
 
-- Historical data limited to cached entries
-- Social sentiment requires Reddit API credentials
-- News sentiment quality depends on article availability
-- Gemini AI fallback to VADER if rate limited
+## 🚨 Error Handling & Reliability
 
-## Next Steps
+The server provides comprehensive error handling for:
+- Invalid stock symbols with helpful suggestions
+- Network connectivity issues and timeouts
+- API service limitations and outages  
+- Missing or incomplete financial data
+- Authentication failures with clear guidance
 
-1. Integrate with trading strategies
-2. Add database persistence for backtesting
-3. Implement real-time streaming
-4. Add more sentiment data sources
-5. Create visualization dashboard
+## 🎯 Production Readiness Features
 
-## Author
+- **Real Paper Trading Integration**: Live connection to Paper Invest API
+- **Comprehensive Logging**: Full request/response logging for debugging
+- **Environment Configuration**: Secure API key management
+- **Modular Architecture**: Easily extendable for new data sources
+- **Test Coverage**: Full test suite for all major functionality
 
-Andre Chua (andre102599@gmail.com)
-GitHub: https://github.com/AndreChuabio
+## 🔮 Future Enhancements
+
+1. **Advanced Analytics**: Technical indicator integration
+2. **Real-time Streaming**: WebSocket support for live updates  
+3. **Database Persistence**: Historical data storage for backtesting
+4. **Visualization Dashboard**: Interactive charts and analytics
+5. **ML Model Integration**: Custom sentiment models and predictions
+6. **Multi-broker Support**: Additional trading platform integrations
+
+## 📊 Supported Data Sources
+
+**Stock Symbols:** All Yahoo Finance supported symbols including:
+- US stocks (AAPL, GOOGL, MSFT, etc.)
+- International markets with proper suffixes
+- ETFs, mutual funds, and indexes
+- Cryptocurrencies (BTC-USD, ETH-USD, etc.)
+
+**News Sources:** 
+- Alpha Vantage financial news
+- NewsAPI comprehensive coverage
+- Financial Modeling Prep earnings data
+
+**Social Media:**
+- Reddit (r/wallstreetbets, r/stocks, r/investing)
+- Twitter integration (configurable)
+
+## 👨‍💻 Author
+
+**Andre Chua** (andre102599@gmail.com)  
+GitHub: [https://github.com/AndreChuabio](https://github.com/AndreChuabio)
+
+---
+
+**Built for quantitative traders and financial analysts who demand real-time sentiment intelligence combined with seamless trading execution.**

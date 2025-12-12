@@ -1,0 +1,15 @@
+{
+    "mcpServers": {
+        "mcp-yfinance-server": {
+            "command": "/Users/andrechuabio/MCP quant/.venv/bin/python",
+            "args": [
+                "/Users/andrechuabio/MCP quant/mcp_yfinance_server.py"
+            ],
+            "env": {
+                "paper_API_KEY": "d96932cbca85940a0d8332ba0df297bf26032fe04756ffef64488f666f2d02ba",
+                "paper_account_ID": "b2c75ae8-93e1-4339-b060-83a6a1eb4c60",
+                "paper_portfolio_ID": "4996db29-73b2-42d9-a548-e3034aaa8451"
+            }
+        }
+    }
+}
