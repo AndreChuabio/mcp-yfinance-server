@@ -1277,13 +1277,18 @@ async def neo4j_get_stock_sentiment(symbol: str) -> list[TextContent]:
         MATCH (stock:Stock {symbol: $symbol})
         OPTIONAL MATCH (stock)-[:CURRENT_SENTIMENT]->(sentiment:Sentiment)
         OPTIONAL MATCH (stock)<-[:ABOUT]-(article:Article)
-        OPTIONAL MATCH (article)-[:HAS_SENTIMENT]->(gemini_sent:Sentiment)
-        OPTIONAL MATCH (article)-[copilot_rel:SENTIMENT_COPILOT]->(stock)
-        WITH stock, sentiment, article,
+        WITH stock, sentiment, COUNT(DISTINCT article) AS total_articles
+        
+        OPTIONAL MATCH (stock)<-[:ABOUT]-(a1:Article)-[:HAS_SENTIMENT]->(gemini_sent:Sentiment)
+        WITH stock, sentiment, total_articles,
              AVG(gemini_sent.score) AS avg_gemini_score,
-             COUNT(DISTINCT gemini_sent) AS gemini_count,
+             COUNT(DISTINCT gemini_sent) AS gemini_count
+        
+        OPTIONAL MATCH (stock)<-[copilot_rel:SENTIMENT_COPILOT]-(a2:Article)
+        WITH stock, sentiment, total_articles, avg_gemini_score, gemini_count,
              AVG(copilot_rel.score) AS avg_copilot_score,
              COUNT(DISTINCT copilot_rel) AS copilot_count
+        
         RETURN 
           stock.symbol AS symbol,
           stock.name AS name,
@@ -1292,7 +1297,7 @@ async def neo4j_get_stock_sentiment(symbol: str) -> list[TextContent]:
           sentiment.label AS current_label,
           sentiment.confidence AS confidence,
           sentiment.timestamp AS sentiment_timestamp,
-          COUNT(DISTINCT article) AS total_articles,
+          total_articles,
           avg_gemini_score,
           gemini_count,
           avg_copilot_score,
