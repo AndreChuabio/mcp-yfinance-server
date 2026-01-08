@@ -558,12 +558,16 @@ async def place_buy_order(symbol: str, shares: float) -> list[TextContent]:
         if shares <= 0:
             raise ValueError("Shares must be positive")
 
-        # Get current stock price for reference
-        stock = yf.Ticker(symbol)
-        hist = stock.history(period="1d")
-        if hist.empty:
-            raise ValueError(f"Cannot get current price for {symbol}")
-        current_price = hist['Close'].iloc[-1]
+        # Try to get current stock price for reference (optional, for display only)
+        current_price = None
+        try:
+            stock = yf.Ticker(symbol)
+            hist = stock.history(period="1d")
+            if not hist.empty:
+                current_price = hist['Close'].iloc[-1]
+        except Exception as price_error:
+            logger.warning(
+                f"Could not fetch price for {symbol}: {price_error}")
 
         # Create order payload for Paper Invest API (corrected structure)
         order_data = {
@@ -590,15 +594,20 @@ async def place_buy_order(symbol: str, shares: float) -> list[TextContent]:
         response.raise_for_status()
         order_result = response.json()
 
+        # Build result with optional price info
+        price_info = ""
+        if current_price:
+            price_info = f"""**Reference Price:** ${current_price:.2f}
+**Estimated Cost:** ${shares * current_price:.2f}
+
+"""
+
         result = f"""✅ **Buy Order Submitted to Paper Invest**
 
 **Symbol:** {symbol}
 **Shares:** {shares}
 **Order Type:** MARKET
-**Reference Price:** ${current_price:.2f}
-**Estimated Cost:** ${shares * current_price:.2f}
-
-**Paper Invest Order Details:**
+{price_info}**Paper Invest Order Details:**
 **Order ID:** {order_result.get('orderId', 'N/A')}
 **Status:** {order_result.get('status', 'UNKNOWN')}
 **Created:** {order_result.get('createdAt', 'N/A')}
@@ -631,12 +640,16 @@ async def place_sell_order(symbol: str, shares: float) -> list[TextContent]:
         if shares <= 0:
             raise ValueError("Shares must be positive")
 
-        # Get current stock price for reference
-        stock = yf.Ticker(symbol)
-        hist = stock.history(period="1d")
-        if hist.empty:
-            raise ValueError(f"Cannot get current price for {symbol}")
-        current_price = hist['Close'].iloc[-1]
+        # Try to get current stock price for reference (optional, for display only)
+        current_price = None
+        try:
+            stock = yf.Ticker(symbol)
+            hist = stock.history(period="1d")
+            if not hist.empty:
+                current_price = hist['Close'].iloc[-1]
+        except Exception as price_error:
+            logger.warning(
+                f"Could not fetch price for {symbol}: {price_error}")
 
         # Create order payload for Paper Invest API (corrected structure)
         order_data = {
@@ -663,15 +676,20 @@ async def place_sell_order(symbol: str, shares: float) -> list[TextContent]:
         response.raise_for_status()
         order_result = response.json()
 
+        # Build result with optional price info
+        price_info = ""
+        if current_price:
+            price_info = f"""**Reference Price:** ${current_price:.2f}
+**Estimated Proceeds:** ${shares * current_price:.2f}
+
+"""
+
         result = f"""✅ **Sell Order Submitted to Paper Invest**
 
 **Symbol:** {symbol}
 **Shares:** {shares}
 **Order Type:** MARKET
-**Reference Price:** ${current_price:.2f}
-**Estimated Proceeds:** ${shares * current_price:.2f}
-
-**Paper Invest Order Details:**
+{price_info}**Paper Invest Order Details:**
 **Order ID:** {order_result.get('orderId', 'N/A')}
 **Status:** {order_result.get('status', 'UNKNOWN')}
 **Created:** {order_result.get('createdAt', 'N/A')}
