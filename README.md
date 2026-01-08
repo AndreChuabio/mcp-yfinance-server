@@ -253,7 +253,7 @@ The Python MCP server (`mcp_yfinance_server.py`) provides 17 tools for Claude De
 - **query_risk_metrics** - Risk calculations (VaR, CVaR, Sharpe)
 - **list_mongodb_collections** - Database collections
 
-### Neo4j Sentiment Tools (7)
+### Neo4j Sentiment Tools (9)
 - **get_stock_sentiment** - Current sentiment summary with article count
 - **get_recent_articles** - Recent news with sentiment filtering
 - **get_sentiment_timeline** - 7-day sentiment evolution
@@ -261,8 +261,11 @@ The Python MCP server (`mcp_yfinance_server.py`) provides 17 tools for Claude De
 - **search_articles_by_keyword** - Keyword-based article search
 - **get_sentiment_statistics** - Aggregate statistics
 - **get_data_sources_breakdown** - Sentiment by data source
+- **write_article_sentiment** - Write/update Copilot sentiment analysis with reasoning, themes, and trading impact
+- **has_copilot_sentiment** - Check if article already has Copilot sentiment (for caching)
 
-All Neo4j tools query the graph database containing 103+ articles with sentiment scores from multiple sources (Yahoo RSS, Google RSS, Alpha Vantage).
+All Neo4j tools query the graph database containing 103+ articles with sentiment scores from multiple sources (Yahoo RSS, Google RSS, Alpha Vantage). The new Copilot sentiment tools enable agentic workflows to store AI-generated sentiment analysis with detailed reasoning and thematic analysis.
+
 
 ## ⚡ Performance & Optimization
 

@@ -435,6 +435,68 @@ async def handle_list_tools() -> list[Tool]:
                 },
                 "required": ["symbol"]
             }
+        ),
+        Tool(
+            name="write_article_sentiment",
+            description="Write or update Copilot-generated sentiment analysis for an article in Neo4j. Creates or updates a :SENTIMENT_COPILOT relationship from Article to Stock.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "url": {
+                        "type": "string",
+                        "description": "Article URL (unique identifier)"
+                    },
+                    "symbol": {
+                        "type": "string",
+                        "description": "Stock ticker symbol (e.g., AAPL, NVDA)"
+                    },
+                    "score": {
+                        "type": "number",
+                        "description": "Sentiment score from -1.0 (bearish) to 1.0 (bullish)"
+                    },
+                    "label": {
+                        "type": "string",
+                        "description": "Sentiment label: bearish, neutral, or bullish"
+                    },
+                    "confidence": {
+                        "type": "number",
+                        "description": "Confidence score from 0 to 1"
+                    },
+                    "reasoning": {
+                        "type": "string",
+                        "description": "Explanation of the sentiment analysis"
+                    },
+                    "themes": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "List of themes identified in the article"
+                    },
+                    "trading_impact": {
+                        "type": "string",
+                        "description": "Assessment of potential trading impact"
+                    },
+                    "analyzed_by": {
+                        "type": "string",
+                        "description": "Analyzer identifier (default: copilot)",
+                        "default": "copilot"
+                    }
+                },
+                "required": ["url", "symbol", "score", "label", "confidence", "reasoning"]
+            }
+        ),
+        Tool(
+            name="has_copilot_sentiment",
+            description="Check if an article already has Copilot sentiment analysis in Neo4j. Returns boolean to enable caching.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "url": {
+                        "type": "string",
+                        "description": "Article URL to check"
+                    }
+                },
+                "required": ["url"]
+            }
         )
     ]
 
@@ -534,6 +596,27 @@ async def handle_call_tool(name: str, arguments: dict[str, Any]) -> list[TextCon
             if not symbol:
                 raise ValueError("Symbol is required")
             return await neo4j_get_data_sources_breakdown(symbol)
+        elif name == "write_article_sentiment":
+            url = arguments.get("url")
+            symbol = arguments.get("symbol")
+            score = arguments.get("score")
+            label = arguments.get("label")
+            confidence = arguments.get("confidence")
+            reasoning = arguments.get("reasoning")
+            if not all([url, symbol, score is not None, label, confidence is not None, reasoning]):
+                raise ValueError(
+                    "url, symbol, score, label, confidence, and reasoning are required")
+            themes = arguments.get("themes", [])
+            trading_impact = arguments.get("trading_impact", "")
+            analyzed_by = arguments.get("analyzed_by", "copilot")
+            return await neo4j_write_article_sentiment(
+                url, symbol, score, label, confidence, reasoning, themes, trading_impact, analyzed_by
+            )
+        elif name == "has_copilot_sentiment":
+            url = arguments.get("url")
+            if not url:
+                raise ValueError("url is required")
+            return await neo4j_has_copilot_sentiment(url)
         else:
             raise ValueError(f"Unknown tool: {name}")
 
@@ -1194,6 +1277,13 @@ async def neo4j_get_stock_sentiment(symbol: str) -> list[TextContent]:
         MATCH (stock:Stock {symbol: $symbol})
         OPTIONAL MATCH (stock)-[:CURRENT_SENTIMENT]->(sentiment:Sentiment)
         OPTIONAL MATCH (stock)<-[:ABOUT]-(article:Article)
+        OPTIONAL MATCH (article)-[:HAS_SENTIMENT]->(gemini_sent:Sentiment)
+        OPTIONAL MATCH (article)-[copilot_rel:SENTIMENT_COPILOT]->(stock)
+        WITH stock, sentiment, article,
+             AVG(gemini_sent.score) AS avg_gemini_score,
+             COUNT(DISTINCT gemini_sent) AS gemini_count,
+             AVG(copilot_rel.score) AS avg_copilot_score,
+             COUNT(DISTINCT copilot_rel) AS copilot_count
         RETURN 
           stock.symbol AS symbol,
           stock.name AS name,
@@ -1202,7 +1292,11 @@ async def neo4j_get_stock_sentiment(symbol: str) -> list[TextContent]:
           sentiment.label AS current_label,
           sentiment.confidence AS confidence,
           sentiment.timestamp AS sentiment_timestamp,
-          COUNT(DISTINCT article) AS total_articles
+          COUNT(DISTINCT article) AS total_articles,
+          avg_gemini_score,
+          gemini_count,
+          avg_copilot_score,
+          copilot_count
         """
 
         results = execute_neo4j_query(query, {"symbol": symbol})
@@ -1220,10 +1314,16 @@ async def neo4j_get_stock_sentiment(symbol: str) -> list[TextContent]:
         result_text += f"**Current Sentiment Score:** {data.get('current_score', 0):.3f}\n"
         result_text += f"**Current Label:** {data.get('current_label', 'N/A')}\n"
         result_text += f"**Confidence:** {data.get('confidence', 0):.2f}\n"
-        result_text += f"**Total Articles:** {data.get('total_articles', 0)}\n"
+        result_text += f"**Total Articles:** {data.get('total_articles', 0)}\n\n"
+
+        result_text += "**Sentiment Breakdown:**\n"
+        if data.get('gemini_count', 0) > 0:
+            result_text += f"  - Gemini: {data['gemini_count']} articles (avg: {data.get('avg_gemini_score', 0):.3f})\n"
+        if data.get('copilot_count', 0) > 0:
+            result_text += f"  - Copilot: {data['copilot_count']} articles (avg: {data.get('avg_copilot_score', 0):.3f})\n"
 
         if data.get('sentiment_timestamp'):
-            result_text += f"**Last Updated:** {data['sentiment_timestamp']}\n"
+            result_text += f"\n**Last Updated:** {data['sentiment_timestamp']}\n"
 
         return [TextContent(type="text", text=result_text)]
 
@@ -1239,17 +1339,24 @@ async def neo4j_get_recent_articles(symbol: str, limit: int = 10, sentiment_filt
 
         query = """
         MATCH (stock:Stock {symbol: $symbol})<-[:ABOUT]-(article:Article)
-        MATCH (article)-[:HAS_SENTIMENT]->(sentiment:Sentiment)
-        WHERE $sentiment_filter IS NULL OR sentiment.label = $sentiment_filter
+        OPTIONAL MATCH (article)-[:HAS_SENTIMENT]->(sentiment:Sentiment)
+        OPTIONAL MATCH (article)-[copilot_rel:SENTIMENT_COPILOT]->(stock)
+        WHERE $sentiment_filter IS NULL OR sentiment.label = $sentiment_filter OR copilot_rel.label = $sentiment_filter
         RETURN 
           article.title AS title,
           article.url AS url,
           article.summary AS summary,
           article.published AS published,
           article.source AS source,
-          sentiment.score AS sentiment_score,
-          sentiment.label AS sentiment_label,
-          sentiment.confidence AS confidence
+          sentiment.score AS gemini_score,
+          sentiment.label AS gemini_label,
+          sentiment.confidence AS gemini_confidence,
+          copilot_rel.score AS copilot_score,
+          copilot_rel.label AS copilot_label,
+          copilot_rel.confidence AS copilot_confidence,
+          copilot_rel.reasoning AS copilot_reasoning,
+          copilot_rel.themes AS copilot_themes,
+          copilot_rel.trading_impact AS copilot_trading_impact
         ORDER BY article.published DESC
         LIMIT $limit
         """
@@ -1272,8 +1379,21 @@ async def neo4j_get_recent_articles(symbol: str, limit: int = 10, sentiment_filt
         for i, article in enumerate(results, 1):
             result_text += f"**{i}. {article['title']}**\n"
             result_text += f"   - Source: {article.get('source', 'N/A')}\n"
-            result_text += f"   - Sentiment: {article['sentiment_label']} (score: {article['sentiment_score']:.3f})\n"
-            result_text += f"   - Confidence: {article.get('confidence', 0):.2f}\n"
+
+            if article.get('gemini_score') is not None:
+                result_text += f"   - Gemini Sentiment: {article['gemini_label']} (score: {article['gemini_score']:.3f}, confidence: {article.get('gemini_confidence', 0):.2f})\n"
+
+            if article.get('copilot_score') is not None:
+                result_text += f"   - Copilot Sentiment: {article['copilot_label']} (score: {article['copilot_score']:.3f}, confidence: {article.get('copilot_confidence', 0):.2f})\n"
+                if article.get('copilot_reasoning'):
+                    reasoning = article['copilot_reasoning'][:200] + "..." if len(
+                        article['copilot_reasoning']) > 200 else article['copilot_reasoning']
+                    result_text += f"   - Copilot Reasoning: {reasoning}\n"
+                if article.get('copilot_themes'):
+                    result_text += f"   - Themes: {', '.join(article['copilot_themes'])}\n"
+                if article.get('copilot_trading_impact'):
+                    result_text += f"   - Trading Impact: {article['copilot_trading_impact']}\n"
+
             result_text += f"   - URL: {article.get('url', 'N/A')}\n"
             if article.get('summary'):
                 summary = article['summary'][:150] + \
@@ -1521,6 +1641,110 @@ async def neo4j_get_data_sources_breakdown(symbol: str) -> list[TextContent]:
 
     except Exception as e:
         logger.error(f"Neo4j error getting sources breakdown: {str(e)}")
+        return [TextContent(type="text", text=f"Error: {str(e)}")]
+
+
+async def neo4j_write_article_sentiment(
+    url: str,
+    symbol: str,
+    score: float,
+    label: str,
+    confidence: float,
+    reasoning: str,
+    themes: list = None,
+    trading_impact: str = "",
+    analyzed_by: str = "copilot"
+) -> list[TextContent]:
+    """Write or update Copilot sentiment analysis for an article."""
+    try:
+        symbol = symbol.upper()
+        themes = themes or []
+
+        query = """
+        MATCH (article:Article {url: $url})
+        MATCH (stock:Stock {symbol: $symbol})
+        MERGE (article)-[r:SENTIMENT_COPILOT]->(stock)
+        SET r.score = $score,
+            r.label = $label,
+            r.confidence = $confidence,
+            r.reasoning = $reasoning,
+            r.themes = $themes,
+            r.trading_impact = $trading_impact,
+            r.analyzed_by = $analyzed_by,
+            r.analyzed_at = datetime()
+        RETURN article.title AS title, article.url AS url, 
+               r.score AS score, r.label AS label, r.confidence AS confidence
+        """
+
+        results = execute_neo4j_query(query, {
+            "url": url,
+            "symbol": symbol,
+            "score": score,
+            "label": label,
+            "confidence": confidence,
+            "reasoning": reasoning,
+            "themes": themes,
+            "trading_impact": trading_impact,
+            "analyzed_by": analyzed_by
+        })
+
+        if not results:
+            return [TextContent(
+                type="text",
+                text=f"Error: Could not find article with URL {url} or stock {symbol}. Ensure both exist in the database."
+            )]
+
+        result = results[0]
+        result_text = f"**Copilot Sentiment Written Successfully**\n\n"
+        result_text += f"Article: {result.get('title', 'N/A')}\n"
+        result_text += f"URL: {result['url']}\n"
+        result_text += f"Symbol: {symbol}\n"
+        result_text += f"Sentiment: {result['label']} (score: {result['score']:.3f})\n"
+        result_text += f"Confidence: {result['confidence']:.2f}\n"
+        result_text += f"Analyzed by: {analyzed_by}\n"
+
+        return [TextContent(type="text", text=result_text)]
+
+    except Exception as e:
+        logger.error(f"Neo4j error writing article sentiment: {str(e)}")
+        return [TextContent(type="text", text=f"Error: {str(e)}")]
+
+
+async def neo4j_has_copilot_sentiment(url: str) -> list[TextContent]:
+    """Check if an article already has Copilot sentiment analysis."""
+    try:
+        query = """
+        MATCH (article:Article {url: $url})-[r:SENTIMENT_COPILOT]->(:Stock)
+        RETURN COUNT(r) > 0 AS has_sentiment,
+               r.analyzed_at AS analyzed_at,
+               r.analyzed_by AS analyzed_by
+        LIMIT 1
+        """
+
+        results = execute_neo4j_query(query, {"url": url})
+
+        if not results or not results[0].get('has_sentiment', False):
+            return [TextContent(
+                type="text",
+                text=json.dumps({
+                    "has_sentiment": False,
+                    "url": url
+                })
+            )]
+
+        result = results[0]
+        return [TextContent(
+            type="text",
+            text=json.dumps({
+                "has_sentiment": True,
+                "url": url,
+                "analyzed_at": str(result.get('analyzed_at', '')),
+                "analyzed_by": result.get('analyzed_by', 'copilot')
+            })
+        )]
+
+    except Exception as e:
+        logger.error(f"Neo4j error checking copilot sentiment: {str(e)}")
         return [TextContent(type="text", text=f"Error: {str(e)}")]
 
 
