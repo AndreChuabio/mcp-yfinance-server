@@ -1,11 +1,13 @@
-# 🎉 Project Summary: MCP YFinance Server with Paper Trading
+# 🎉 Project Summary: MCP YFinance Server with Paper Trading & Neo4j GraphRAG
 
 ## ✅ What We Built
 
 ### 🔧 Core Functionality
 - **MCP Server** with stock data tools (yfinance integration)
 - **Real Paper Trading** integration with Paper Invest API
-- **6 Total Tools** - 3 for stock data, 3 for paper trading
+- **Neo4j Graph Database** for sentiment analysis and GraphRAG
+- **MongoDB Integration** for portfolio risk metrics
+- **17 Total Tools** - 3 stock data, 3 paper trading, 4 MongoDB, 7 Neo4j sentiment
 
 ### 📊 Successfully Tested
 - ✅ Stock price queries (AAPL, TSLA, etc.)
@@ -13,6 +15,8 @@
 - ✅ Company information lookup
 - ✅ **REAL Paper Invest API integration** 
 - ✅ **REAL order placement** (Order ID: 73dface8-af91-49c9-991a-5166c2156169)
+- ✅ **Neo4j sentiment queries** (103+ articles with sentiment scores)
+- ✅ **MongoDB portfolio analytics** (risk metrics, holdings, price history)
 
 ### 🎯 Multiple Client Support
 - **Claude Desktop** - Natural language financial assistant
@@ -23,18 +27,43 @@
 
 ```
 📦 MCP YFinance Server
-├── 🤖 mcp_yfinance_server.py      # Main MCP server
+├── 🤖 mcp_yfinance_server.py      # Main MCP server with Neo4j integration
 ├── ⚙️ claude_desktop_config.json  # Claude Desktop config
-├── 🔐 .env                        # API credentials
-├── 📋 requirements.txt            # Dependencies
-├── 🧪 test_paper_trading.py       # Basic tests
-├── 🎬 demo_complete.py            # Full demo
+├── 🔐 .env                        # API credentials (including Neo4j)
+├── 📋 requirements.txt            # Dependencies (yfinance, neo4j, pymongo)
+├── 🧪 tests/
+│   ├── test_paper_trading.py      # Paper trading tests
+│   ├── test_neo4j_mcp.py         # Neo4j sentiment tools tests
+│   └── demo_complete.py          # Full demo
 ├── 📚 docs/
 │   ├── CLAUDE_DESKTOP_SETUP.md    # Claude integration guide
 │   ├── VSCODE_SETUP.md           # VS Code usage guide
-│   └── INTEGRATION.md            # Original integration docs
+│   └── PAPER_TRADING_SETUP.md    # Paper trading setup
 └── 📖 README.md                   # Main documentation
 ```
+
+## 🎯 Neo4j GraphRAG Features
+
+### 📈 Sentiment Analysis Tools
+1. **get_stock_sentiment** - Current sentiment summary with article count
+2. **get_recent_articles** - Recent news with sentiment scores and filtering
+3. **get_sentiment_timeline** - 7-day sentiment evolution with daily breakdowns
+4. **compare_stock_sentiments** - Multi-stock sentiment comparison
+5. **search_articles_by_keyword** - Keyword-based article search
+6. **get_sentiment_statistics** - Aggregate statistics (avg, min, max, counts)
+7. **get_data_sources_breakdown** - Sentiment by source (RSS, Alpha Vantage, etc.)
+
+### 🗄️ Data Architecture
+- **Stock Nodes** - Symbol, name, last_updated
+- **Article Nodes** - Title, URL, summary, published, source
+- **Sentiment Nodes** - Score, label, confidence, timestamp, method
+- **Relationships** - ABOUT, HAS_SENTIMENT, CURRENT_SENTIMENT
+
+### 📊 Sample Data
+- 48 articles for AAPL (20 Yahoo RSS, 20 Google RSS, 8 Alpha Vantage)
+- 41 articles for NVDA
+- Sentiment scores from -1 (bearish) to +1 (bullish)
+- Multi-source aggregation with confidence scores
 
 ## 🚀 Ready to Use
 

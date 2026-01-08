@@ -68,3 +68,6 @@ coverage/
 prompts/
 .github/prompts/
 *.instructions.md
+
+# Config files with sensitive data
+claude_desktop_config.json

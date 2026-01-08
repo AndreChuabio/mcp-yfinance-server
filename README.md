@@ -1,6 +1,6 @@
 # MCP YFinance Server - Complete Financial Analysis Suite
 
-A comprehensive MCP (Model Context Protocol) server that combines real-time sentiment analysis, stock data analysis, and paper trading functionality.
+A comprehensive MCP (Model Context Protocol) server that combines real-time sentiment analysis, stock data analysis, and paper trading functionality. Includes Node.js HTTP server for sentiment analysis and Python MCP server with Neo4j graph database integration.
 
 ## 🌟 Features
 
@@ -17,6 +17,15 @@ A comprehensive MCP (Model Context Protocol) server that combines real-time sent
 - Batch processing for multiple tickers
 - Historical sentiment tracking
 - Trending ticker detection
+
+### Neo4j Graph Database Integration (Python MCP Server)
+- GraphRAG for sentiment data queries via MCP tools
+- Stock sentiment tracking with historical data
+- Article-to-stock relationship mapping
+- Multi-source sentiment aggregation
+- Time-series sentiment analysis
+- Cross-stock sentiment comparison
+- Keyword-based article search
 
 ### Paper Trading (REAL API Integration)
 - View your REAL Paper Invest account balance and positions
@@ -53,13 +62,19 @@ A comprehensive MCP (Model Context Protocol) server that combines real-time sent
    - `NEWS_API_KEY`: Get from [NewsAPI](https://newsapi.org/register)
    - `FMP_API_KEY`: Get from [Financial Modeling Prep](https://financialmodelingprep.com/developer/docs)
    - Reddit credentials (optional): Get from [Reddit Apps](https://www.reddit.com/prefs/apps)
+   - Neo4j credentials (for Python MCP server): `NEO4J_URI`, `NEO4J_USERNAME`, `NEO4J_PASSWORD`
 
-5. **Start the server:**
+5. **Start the Node.js sentiment server:**
    ```bash
    npm start
    ```
 
-## 📊 Sentiment Analysis API Endpoints
+6. **Or start the Python MCP server (with Neo4j):**
+   ```bash
+   python3 mcp_yfinance_server.py
+   ```
+
+## 📊 Sentiment Analysis API Endpoints (Node.js Server)
 
 ### Single Ticker Sentiment
 ```bash
@@ -202,16 +217,52 @@ node tests/health.test.js
 ```
 mcp-server/
 ├── src/
-│   ├── index.js                    # Main server with API routes
+│   ├── index.js                    # Node.js HTTP server with sentiment API
 │   └── sentiment/
 │       ├── sentimentAnalyzer.js    # Core sentiment logic with Gemini AI
 │       ├── newsProvider.js         # Financial news integration
 │       ├── socialProvider.js       # Social media sentiment
 │       └── cache.js                # Intelligent caching layer
-├── tests/                          # Comprehensive test suite  
-├── mcp_yfinance_server.py         # MCP server implementation
+├── mcp_yfinance_server.py         # Python MCP server with Neo4j integration
+├── tests/                          # Comprehensive test suite
+│   ├── health.test.js              # Node.js server tests
+│   ├── sentiment.test.js           # Sentiment analysis tests
+│   └── test_neo4j_mcp.py          # Neo4j MCP tools tests
 └── docs/                          # Setup and configuration guides
 ```
+
+## 📊 Python MCP Server Tools (Claude Desktop)
+
+## 📊 Python MCP Server Tools (Claude Desktop)
+
+The Python MCP server (`mcp_yfinance_server.py`) provides 17 tools for Claude Desktop:
+
+### Stock Data Tools (3)
+- **get_stock_price** - Current price and trading info
+- **get_stock_history** - Historical price data
+- **get_stock_info** - Detailed company information
+
+### Paper Trading Tools (3)
+- **get_portfolio_balance** - Account balance and positions
+- **place_buy_order** - Execute buy orders
+- **place_sell_order** - Execute sell orders
+
+### MongoDB Tools (4)
+- **query_portfolio_holdings** - Query holdings data
+- **query_price_history** - Historical price queries
+- **query_risk_metrics** - Risk calculations (VaR, CVaR, Sharpe)
+- **list_mongodb_collections** - Database collections
+
+### Neo4j Sentiment Tools (7)
+- **get_stock_sentiment** - Current sentiment summary with article count
+- **get_recent_articles** - Recent news with sentiment filtering
+- **get_sentiment_timeline** - 7-day sentiment evolution
+- **compare_stock_sentiments** - Multi-stock comparison
+- **search_articles_by_keyword** - Keyword-based article search
+- **get_sentiment_statistics** - Aggregate statistics
+- **get_data_sources_breakdown** - Sentiment by data source
+
+All Neo4j tools query the graph database containing 103+ articles with sentiment scores from multiple sources (Yahoo RSS, Google RSS, Alpha Vantage).
 
 ## ⚡ Performance & Optimization
 

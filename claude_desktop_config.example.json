@@ -1,0 +1,21 @@
+{
+    "mcpServers": {
+        "mcp-yfinance-server": {
+            "command": "/path/to/your/.venv/bin/python",
+            "args": [
+                "/path/to/your/mcp_yfinance_server.py"
+            ],
+            "env": {
+                "paper_API_KEY": "your_paper_invest_api_key",
+                "paper_account_ID": "your_paper_account_id",
+                "paper_portfolio_ID": "your_paper_portfolio_id",
+                "NEO4J_URI": "neo4j+s://your-instance.databases.neo4j.io",
+                "NEO4J_USERNAME": "neo4j",
+                "NEO4J_PASSWORD": "your_neo4j_password",
+                "NEO4J_DATABASE": "neo4j",
+                "MONGODB_URI": "your_mongodb_connection_string",
+                "MONGODB_DATABASE": "portfolio_risk"
+            }
+        }
+    }
+}

@@ -22,6 +22,8 @@ import requests
 from pymongo import MongoClient
 from pymongo.errors import ConnectionFailure, ServerSelectionTimeoutError
 from bson import json_util
+from neo4j import GraphDatabase
+from neo4j.exceptions import ServiceUnavailable, AuthError
 
 # Load environment variables
 load_dotenv()
@@ -47,6 +49,13 @@ MONGODB_URI = os.getenv("MONGODB_URI")
 MONGODB_DATABASE = os.getenv("MONGODB_DATABASE", "portfolio_risk")
 _mongo_client = None  # Global client for connection reuse
 
+# Neo4j configuration
+NEO4J_URI = os.getenv("NEO4J_URI")
+NEO4J_USERNAME = os.getenv("NEO4J_USERNAME")
+NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD")
+NEO4J_DATABASE = os.getenv("NEO4J_DATABASE", "neo4j")
+_neo4j_driver = None  # Global driver for connection reuse
+
 
 def get_mongo_client():
     """Get or create MongoDB client with connection pooling."""
@@ -69,6 +78,40 @@ def get_mongo_database():
     """Get MongoDB database instance."""
     client = get_mongo_client()
     return client[MONGODB_DATABASE]
+
+
+def get_neo4j_driver():
+    """Get or create Neo4j driver with connection pooling."""
+    global _neo4j_driver
+
+    if _neo4j_driver is None:
+        if not NEO4J_URI or not NEO4J_USERNAME or not NEO4J_PASSWORD:
+            raise ValueError(
+                "Neo4j credentials not configured in environment variables")
+
+        try:
+            _neo4j_driver = GraphDatabase.driver(
+                NEO4J_URI,
+                auth=(NEO4J_USERNAME, NEO4J_PASSWORD),
+                max_connection_pool_size=10
+            )
+            # Verify connectivity
+            _neo4j_driver.verify_connectivity()
+            logger.info("Neo4j driver initialized successfully")
+        except (ServiceUnavailable, AuthError) as e:
+            logger.error(f"Failed to connect to Neo4j: {e}")
+            raise ValueError(f"Neo4j connection failed: {e}")
+
+    return _neo4j_driver
+
+
+def execute_neo4j_query(query: str, parameters: dict = None):
+    """Execute a Neo4j query and return results."""
+    driver = get_neo4j_driver()
+
+    with driver.session(database=NEO4J_DATABASE) as session:
+        result = session.run(query, parameters or {})
+        return [record.data() for record in result]
 
 
 async def get_jwt_token():
@@ -273,6 +316,125 @@ async def handle_list_tools() -> list[Tool]:
                 "properties": {},
                 "required": []
             }
+        ),
+        # Neo4j Sentiment Tools
+        Tool(
+            name="get_stock_sentiment",
+            description="Get current sentiment summary for a stock symbol from Neo4j graph database",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "symbol": {
+                        "type": "string",
+                        "description": "Stock ticker symbol (e.g., AAPL, NVDA)"
+                    }
+                },
+                "required": ["symbol"]
+            }
+        ),
+        Tool(
+            name="get_recent_articles",
+            description="Retrieve recent news articles for a stock with sentiment scores from Neo4j",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "symbol": {
+                        "type": "string",
+                        "description": "Stock ticker symbol (e.g., AAPL, NVDA)"
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Maximum articles to return (default: 10)",
+                        "default": 10
+                    },
+                    "sentiment_filter": {
+                        "type": "string",
+                        "description": "Filter by sentiment label: bullish, bearish, or neutral"
+                    }
+                },
+                "required": ["symbol"]
+            }
+        ),
+        Tool(
+            name="get_sentiment_timeline",
+            description="Get sentiment evolution over time for a stock from Neo4j",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "symbol": {
+                        "type": "string",
+                        "description": "Stock ticker symbol (e.g., AAPL, NVDA)"
+                    },
+                    "days": {
+                        "type": "integer",
+                        "description": "Number of days to look back (default: 7)",
+                        "default": 7
+                    }
+                },
+                "required": ["symbol"]
+            }
+        ),
+        Tool(
+            name="compare_stock_sentiments",
+            description="Compare sentiment across multiple stocks from Neo4j",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "symbols": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Array of stock ticker symbols to compare (e.g., ['AAPL', 'NVDA', 'GOOGL'])"
+                    }
+                },
+                "required": ["symbols"]
+            }
+        ),
+        Tool(
+            name="search_articles_by_keyword",
+            description="Search articles containing specific keywords in Neo4j",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "keyword": {
+                        "type": "string",
+                        "description": "Search term to find in article titles and summaries"
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Maximum results to return (default: 20)",
+                        "default": 20
+                    }
+                },
+                "required": ["keyword"]
+            }
+        ),
+        Tool(
+            name="get_sentiment_statistics",
+            description="Get aggregate sentiment statistics from Neo4j (avg, stdev, counts)",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "symbol": {
+                        "type": "string",
+                        "description": "Stock ticker symbol (optional - if omitted, returns stats for all stocks)"
+                    }
+                },
+                "required": []
+            }
+        ),
+        Tool(
+            name="get_data_sources_breakdown",
+            description="Analyze sentiment by data source (RSS, Alpha Vantage, etc.) from Neo4j",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "symbol": {
+                        "type": "string",
+                        "description": "Stock ticker symbol (e.g., AAPL, NVDA)"
+                    }
+                },
+                "required": ["symbol"]
+            }
         )
     ]
 
@@ -334,6 +496,44 @@ async def handle_call_tool(name: str, arguments: dict[str, Any]) -> list[TextCon
             return await query_risk_metrics(metric_type, symbol, limit)
         elif name == "list_mongodb_collections":
             return await list_mongodb_collections()
+        # Neo4j tools
+        elif name == "get_stock_sentiment":
+            symbol = arguments.get("symbol")
+            if not symbol:
+                raise ValueError("Symbol is required")
+            return await neo4j_get_stock_sentiment(symbol)
+        elif name == "get_recent_articles":
+            symbol = arguments.get("symbol")
+            if not symbol:
+                raise ValueError("Symbol is required")
+            limit = arguments.get("limit", 10)
+            sentiment_filter = arguments.get("sentiment_filter")
+            return await neo4j_get_recent_articles(symbol, limit, sentiment_filter)
+        elif name == "get_sentiment_timeline":
+            symbol = arguments.get("symbol")
+            if not symbol:
+                raise ValueError("Symbol is required")
+            days = arguments.get("days", 7)
+            return await neo4j_get_sentiment_timeline(symbol, days)
+        elif name == "compare_stock_sentiments":
+            symbols = arguments.get("symbols")
+            if not symbols or not isinstance(symbols, list):
+                raise ValueError("symbols must be a non-empty array")
+            return await neo4j_compare_stock_sentiments(symbols)
+        elif name == "search_articles_by_keyword":
+            keyword = arguments.get("keyword")
+            if not keyword:
+                raise ValueError("keyword is required")
+            limit = arguments.get("limit", 20)
+            return await neo4j_search_articles_by_keyword(keyword, limit)
+        elif name == "get_sentiment_statistics":
+            symbol = arguments.get("symbol")
+            return await neo4j_get_sentiment_statistics(symbol)
+        elif name == "get_data_sources_breakdown":
+            symbol = arguments.get("symbol")
+            if not symbol:
+                raise ValueError("Symbol is required")
+            return await neo4j_get_data_sources_breakdown(symbol)
         else:
             raise ValueError(f"Unknown tool: {name}")
 
@@ -981,6 +1181,347 @@ async def list_mongodb_collections() -> list[TextContent]:
     except Exception as e:
         logger.error(f"Error listing collections: {str(e)}")
         return [TextContent(type="text", text=f"Error listing collections: {str(e)}")]
+
+
+# Neo4j Tool Implementations
+
+async def neo4j_get_stock_sentiment(symbol: str) -> list[TextContent]:
+    """Get current sentiment summary for a stock from Neo4j."""
+    try:
+        symbol = symbol.upper()
+
+        query = """
+        MATCH (stock:Stock {symbol: $symbol})
+        OPTIONAL MATCH (stock)-[:CURRENT_SENTIMENT]->(sentiment:Sentiment)
+        OPTIONAL MATCH (stock)<-[:ABOUT]-(article:Article)
+        RETURN 
+          stock.symbol AS symbol,
+          stock.name AS name,
+          stock.last_updated AS last_updated,
+          sentiment.score AS current_score,
+          sentiment.label AS current_label,
+          sentiment.confidence AS confidence,
+          sentiment.timestamp AS sentiment_timestamp,
+          COUNT(DISTINCT article) AS total_articles
+        """
+
+        results = execute_neo4j_query(query, {"symbol": symbol})
+
+        if not results:
+            return [TextContent(
+                type="text",
+                text=f"Stock {symbol} not found in Neo4j database."
+            )]
+
+        data = results[0]
+
+        result_text = f"**Stock Sentiment: {data['symbol']}**\n\n"
+        result_text += f"**Company:** {data.get('name', 'N/A')}\n"
+        result_text += f"**Current Sentiment Score:** {data.get('current_score', 0):.3f}\n"
+        result_text += f"**Current Label:** {data.get('current_label', 'N/A')}\n"
+        result_text += f"**Confidence:** {data.get('confidence', 0):.2f}\n"
+        result_text += f"**Total Articles:** {data.get('total_articles', 0)}\n"
+
+        if data.get('sentiment_timestamp'):
+            result_text += f"**Last Updated:** {data['sentiment_timestamp']}\n"
+
+        return [TextContent(type="text", text=result_text)]
+
+    except Exception as e:
+        logger.error(f"Neo4j error getting stock sentiment: {str(e)}")
+        return [TextContent(type="text", text=f"Error: {str(e)}")]
+
+
+async def neo4j_get_recent_articles(symbol: str, limit: int = 10, sentiment_filter: str = None) -> list[TextContent]:
+    """Retrieve recent articles for a stock with sentiment scores."""
+    try:
+        symbol = symbol.upper()
+
+        query = """
+        MATCH (stock:Stock {symbol: $symbol})<-[:ABOUT]-(article:Article)
+        MATCH (article)-[:HAS_SENTIMENT]->(sentiment:Sentiment)
+        WHERE $sentiment_filter IS NULL OR sentiment.label = $sentiment_filter
+        RETURN 
+          article.title AS title,
+          article.url AS url,
+          article.summary AS summary,
+          article.published AS published,
+          article.source AS source,
+          sentiment.score AS sentiment_score,
+          sentiment.label AS sentiment_label,
+          sentiment.confidence AS confidence
+        ORDER BY article.published DESC
+        LIMIT $limit
+        """
+
+        results = execute_neo4j_query(query, {
+            "symbol": symbol,
+            "limit": limit,
+            "sentiment_filter": sentiment_filter
+        })
+
+        if not results:
+            filter_msg = f" ({sentiment_filter})" if sentiment_filter else ""
+            return [TextContent(
+                type="text",
+                text=f"No articles found for {symbol}{filter_msg}."
+            )]
+
+        result_text = f"**Recent Articles for {symbol}** ({len(results)} articles)\n\n"
+
+        for i, article in enumerate(results, 1):
+            result_text += f"**{i}. {article['title']}**\n"
+            result_text += f"   - Source: {article.get('source', 'N/A')}\n"
+            result_text += f"   - Sentiment: {article['sentiment_label']} (score: {article['sentiment_score']:.3f})\n"
+            result_text += f"   - Confidence: {article.get('confidence', 0):.2f}\n"
+            result_text += f"   - URL: {article.get('url', 'N/A')}\n"
+            if article.get('summary'):
+                summary = article['summary'][:150] + \
+                    "..." if len(article['summary']
+                                 ) > 150 else article['summary']
+                result_text += f"   - Summary: {summary}\n"
+            result_text += "\n"
+
+        return [TextContent(type="text", text=result_text)]
+
+    except Exception as e:
+        logger.error(f"Neo4j error getting recent articles: {str(e)}")
+        return [TextContent(type="text", text=f"Error: {str(e)}")]
+
+
+async def neo4j_get_sentiment_timeline(symbol: str, days: int = 7) -> list[TextContent]:
+    """Get sentiment evolution over time for a stock."""
+    try:
+        symbol = symbol.upper()
+
+        query = """
+        MATCH (stock:Stock {symbol: $symbol})<-[:ABOUT]-(article:Article)
+        MATCH (article)-[:HAS_SENTIMENT]->(sentiment:Sentiment)
+        WHERE sentiment.timestamp >= datetime() - duration({days: $days})
+        WITH date(sentiment.timestamp) AS date, sentiment
+        RETURN 
+          date,
+          AVG(sentiment.score) AS avg_score,
+          COUNT(sentiment) AS article_count,
+          SUM(CASE WHEN sentiment.label = 'bullish' THEN 1 ELSE 0 END) AS bullish_count,
+          SUM(CASE WHEN sentiment.label = 'bearish' THEN 1 ELSE 0 END) AS bearish_count,
+          SUM(CASE WHEN sentiment.label = 'neutral' THEN 1 ELSE 0 END) AS neutral_count
+        ORDER BY date DESC
+        """
+
+        results = execute_neo4j_query(query, {"symbol": symbol, "days": days})
+
+        if not results:
+            return [TextContent(
+                type="text",
+                text=f"No sentiment data found for {symbol} in the last {days} days."
+            )]
+
+        result_text = f"**Sentiment Timeline for {symbol}** (Last {days} days)\n\n"
+        result_text += "| Date | Avg Score | Articles | Bullish | Bearish | Neutral |\n"
+        result_text += "|------|-----------|----------|---------|---------|----------|\n"
+
+        for row in results:
+            date_str = str(row['date'])
+            avg_score = row['avg_score']
+            article_count = row['article_count']
+            bullish = row['bullish_count']
+            bearish = row['bearish_count']
+            neutral = row['neutral_count']
+
+            result_text += f"| {date_str} | {avg_score:.3f} | {article_count} | {bullish} | {bearish} | {neutral} |\n"
+
+        return [TextContent(type="text", text=result_text)]
+
+    except Exception as e:
+        logger.error(f"Neo4j error getting sentiment timeline: {str(e)}")
+        return [TextContent(type="text", text=f"Error: {str(e)}")]
+
+
+async def neo4j_compare_stock_sentiments(symbols: list) -> list[TextContent]:
+    """Compare sentiment across multiple stocks."""
+    try:
+        upper_symbols = [s.upper() for s in symbols]
+
+        query = """
+        MATCH (stock:Stock)
+        WHERE stock.symbol IN $symbols
+        OPTIONAL MATCH (stock)-[:CURRENT_SENTIMENT]->(sentiment:Sentiment)
+        OPTIONAL MATCH (stock)<-[:ABOUT]-(article:Article)
+        WITH stock, sentiment, COUNT(DISTINCT article) AS article_count
+        RETURN 
+          stock.symbol AS symbol,
+          stock.name AS name,
+          sentiment.score AS current_score,
+          sentiment.label AS current_label,
+          article_count
+        ORDER BY sentiment.score DESC
+        """
+
+        results = execute_neo4j_query(query, {"symbols": upper_symbols})
+
+        if not results:
+            return [TextContent(
+                type="text",
+                text=f"No data found for stocks: {', '.join(upper_symbols)}"
+            )]
+
+        result_text = f"**Stock Sentiment Comparison**\n\n"
+        result_text += "| Symbol | Name | Score | Label | Articles |\n"
+        result_text += "|--------|------|-------|-------|----------|\n"
+
+        for row in results:
+            symbol = row['symbol']
+            name = row.get('name', 'N/A')[:30]
+            score = row.get('current_score', 0)
+            label = row.get('current_label', 'N/A')
+            articles = row.get('article_count', 0)
+
+            result_text += f"| {symbol} | {name} | {score:.3f} | {label} | {articles} |\n"
+
+        return [TextContent(type="text", text=result_text)]
+
+    except Exception as e:
+        logger.error(f"Neo4j error comparing stocks: {str(e)}")
+        return [TextContent(type="text", text=f"Error: {str(e)}")]
+
+
+async def neo4j_search_articles_by_keyword(keyword: str, limit: int = 20) -> list[TextContent]:
+    """Search articles containing specific keywords."""
+    try:
+        query = """
+        MATCH (article:Article)-[:HAS_SENTIMENT]->(sentiment:Sentiment)
+        MATCH (article)-[:ABOUT]->(stock:Stock)
+        WHERE toLower(article.title) CONTAINS toLower($keyword)
+           OR toLower(article.summary) CONTAINS toLower($keyword)
+        RETURN 
+          stock.symbol AS symbol,
+          article.title AS title,
+          article.url AS url,
+          article.published AS published,
+          article.source AS source,
+          sentiment.score AS sentiment_score,
+          sentiment.label AS sentiment_label
+        ORDER BY article.published DESC
+        LIMIT $limit
+        """
+
+        results = execute_neo4j_query(
+            query, {"keyword": keyword, "limit": limit})
+
+        if not results:
+            return [TextContent(
+                type="text",
+                text=f"No articles found containing '{keyword}'."
+            )]
+
+        result_text = f"**Articles containing '{keyword}'** ({len(results)} results)\n\n"
+
+        for i, article in enumerate(results, 1):
+            result_text += f"**{i}. [{article['symbol']}] {article['title']}**\n"
+            result_text += f"   - Sentiment: {article['sentiment_label']} ({article['sentiment_score']:.3f})\n"
+            result_text += f"   - Source: {article.get('source', 'N/A')}\n"
+            result_text += f"   - URL: {article.get('url', 'N/A')}\n\n"
+
+        return [TextContent(type="text", text=result_text)]
+
+    except Exception as e:
+        logger.error(f"Neo4j error searching articles: {str(e)}")
+        return [TextContent(type="text", text=f"Error: {str(e)}")]
+
+
+async def neo4j_get_sentiment_statistics(symbol: str = None) -> list[TextContent]:
+    """Get aggregate sentiment statistics."""
+    try:
+        query = """
+        MATCH (article:Article)-[:HAS_SENTIMENT]->(sentiment:Sentiment)
+        MATCH (article)-[:ABOUT]->(stock:Stock)
+        WHERE $symbol IS NULL OR stock.symbol = $symbol
+        WITH stock, sentiment
+        RETURN 
+          stock.symbol AS symbol,
+          COUNT(sentiment) AS total_sentiments,
+          AVG(sentiment.score) AS avg_score,
+          MIN(sentiment.score) AS min_score,
+          MAX(sentiment.score) AS max_score,
+          SUM(CASE WHEN sentiment.label = 'bullish' THEN 1 ELSE 0 END) AS bullish_count,
+          SUM(CASE WHEN sentiment.label = 'bearish' THEN 1 ELSE 0 END) AS bearish_count,
+          SUM(CASE WHEN sentiment.label = 'neutral' THEN 1 ELSE 0 END) AS neutral_count
+        ORDER BY total_sentiments DESC
+        """
+
+        param_symbol = symbol.upper() if symbol else None
+        results = execute_neo4j_query(query, {"symbol": param_symbol})
+
+        if not results:
+            scope = f" for {symbol.upper()}" if symbol else ""
+            return [TextContent(
+                type="text",
+                text=f"No sentiment statistics found{scope}."
+            )]
+
+        scope_title = f" for {symbol.upper()}" if symbol else " (All Stocks)"
+        result_text = f"**Sentiment Statistics{scope_title}**\n\n"
+        result_text += "| Symbol | Total | Avg Score | Min | Max | Bullish | Bearish | Neutral |\n"
+        result_text += "|--------|-------|-----------|-----|-----|---------|---------|----------|\n"
+
+        for row in results:
+            result_text += f"| {row['symbol']} | {row['total_sentiments']} | "
+            result_text += f"{row['avg_score']:.3f} | {row['min_score']:.3f} | {row['max_score']:.3f} | "
+            result_text += f"{row['bullish_count']} | {row['bearish_count']} | {row['neutral_count']} |\n"
+
+        return [TextContent(type="text", text=result_text)]
+
+    except Exception as e:
+        logger.error(f"Neo4j error getting statistics: {str(e)}")
+        return [TextContent(type="text", text=f"Error: {str(e)}")]
+
+
+async def neo4j_get_data_sources_breakdown(symbol: str) -> list[TextContent]:
+    """Analyze sentiment by data source."""
+    try:
+        symbol = symbol.upper()
+
+        query = """
+        MATCH (stock:Stock {symbol: $symbol})<-[:ABOUT]-(article:Article)
+        MATCH (article)-[:HAS_SENTIMENT]->(sentiment:Sentiment)
+        RETURN 
+          article.source AS source,
+          sentiment.method AS analysis_method,
+          COUNT(*) AS article_count,
+          AVG(sentiment.score) AS avg_sentiment,
+          MIN(sentiment.score) AS min_sentiment,
+          MAX(sentiment.score) AS max_sentiment
+        ORDER BY article_count DESC
+        """
+
+        results = execute_neo4j_query(query, {"symbol": symbol})
+
+        if not results:
+            return [TextContent(
+                type="text",
+                text=f"No source data found for {symbol}."
+            )]
+
+        result_text = f"**Data Sources Breakdown for {symbol}**\n\n"
+        result_text += "| Source | Method | Articles | Avg Score | Min | Max |\n"
+        result_text += "|--------|--------|----------|-----------|-----|-----|\n"
+
+        for row in results:
+            source = row.get('source', 'N/A')
+            method = row.get('analysis_method', 'N/A')
+            count = row['article_count']
+            avg = row['avg_sentiment']
+            min_val = row['min_sentiment']
+            max_val = row['max_sentiment']
+
+            result_text += f"| {source} | {method} | {count} | {avg:.3f} | {min_val:.3f} | {max_val:.3f} |\n"
+
+        return [TextContent(type="text", text=result_text)]
+
+    except Exception as e:
+        logger.error(f"Neo4j error getting sources breakdown: {str(e)}")
+        return [TextContent(type="text", text=f"Error: {str(e)}")]
 
 
 async def main():
