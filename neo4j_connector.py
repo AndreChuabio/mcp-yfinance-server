@@ -27,10 +27,10 @@ class Neo4jConnector:
         self.username = os.getenv('NEO4J_USERNAME')
         self.password = os.getenv('NEO4J_PASSWORD')
         self.database = os.getenv('NEO4J_DATABASE', 'neo4j')
-        
+
         if not all([self.uri, self.username, self.password]):
             raise ValueError("Missing Neo4j credentials in .env file")
-        
+
         self.driver: Optional[Driver] = None
         self._connect()
 
@@ -52,7 +52,7 @@ class Neo4jConnector:
                 logger.error(f"Connection attempt {attempt + 1} failed: {e}")
                 if attempt == max_retries - 1:
                     raise
-        
+
     def close(self) -> None:
         """Close Neo4j driver connection."""
         if self.driver:
@@ -67,19 +67,20 @@ class Neo4jConnector:
             "CREATE INDEX sentiment_timestamp IF NOT EXISTS FOR (s:Sentiment) ON (s.timestamp)",
             "CREATE INDEX article_published IF NOT EXISTS FOR (a:Article) ON (a.published)"
         ]
-        
+
         with self.driver.session(database=self.database) as session:
             for query in constraints_and_indexes:
                 try:
                     session.run(query)
                     logger.info(f"Executed: {query}")
                 except Exception as e:
-                    logger.warning(f"Schema query failed (may already exist): {e}")
+                    logger.warning(
+                        f"Schema query failed (may already exist): {e}")
 
     def create_stock(self, symbol: str, name: str) -> None:
         """
         Create or update a Stock node.
-        
+
         Args:
             symbol: Stock ticker symbol (e.g., 'AAPL')
             name: Full company name
@@ -97,10 +98,10 @@ class Neo4jConnector:
     def create_article(self, article_data: Dict[str, Any]) -> bool:
         """
         Create an Article node if it doesn't exist.
-        
+
         Args:
             article_data: Dict with keys: url, title, summary, published, source
-            
+
         Returns:
             True if article was created, False if it already exists
         """
@@ -117,7 +118,7 @@ class Neo4jConnector:
             a.is_new = false
         RETURN a.is_new AS is_new
         """
-        
+
         with self.driver.session(database=self.database) as session:
             result = session.run(
                 query,
@@ -129,21 +130,22 @@ class Neo4jConnector:
             )
             record = result.single()
             is_new = record.get('is_new', False) if record else False
-            
+
             if is_new:
-                logger.info(f"Created Article: {article_data['title'][:50]}...")
+                logger.info(
+                    f"Created Article: {article_data['title'][:50]}...")
             else:
                 logger.debug(f"Article already exists: {article_data['url']}")
-            
+
             return is_new
 
     def create_sentiment(self, sentiment_data: Dict[str, Any]) -> str:
         """
         Create a Sentiment node.
-        
+
         Args:
             sentiment_data: Dict with keys: score, label, confidence, method
-            
+
         Returns:
             sentiment_id: UUID of created sentiment node
         """
@@ -158,7 +160,7 @@ class Neo4jConnector:
         })
         RETURN s.id AS sentiment_id
         """
-        
+
         with self.driver.session(database=self.database) as session:
             result = session.run(
                 query,
@@ -168,7 +170,8 @@ class Neo4jConnector:
                 method=sentiment_data['method']
             )
             sentiment_id = result.single()['sentiment_id']
-            logger.debug(f"Created Sentiment: {sentiment_data['label']} ({sentiment_data['score']:.2f})")
+            logger.debug(
+                f"Created Sentiment: {sentiment_data['label']} ({sentiment_data['score']:.2f})")
             return sentiment_id
 
     def link_article_to_stock(self, article_url: str, stock_symbol: str) -> None:
@@ -178,7 +181,7 @@ class Neo4jConnector:
         MATCH (s:Stock {symbol: $symbol})
         MERGE (a)-[:ABOUT]->(s)
         """
-        
+
         with self.driver.session(database=self.database) as session:
             session.run(query, url=article_url, symbol=stock_symbol)
             logger.debug(f"Linked article to {stock_symbol}")
@@ -190,7 +193,7 @@ class Neo4jConnector:
         MATCH (s:Sentiment {id: $sentiment_id})
         MERGE (a)-[:HAS_SENTIMENT]->(s)
         """
-        
+
         with self.driver.session(database=self.database) as session:
             session.run(query, url=article_url, sentiment_id=sentiment_id)
             logger.debug(f"Linked article to sentiment")
@@ -199,7 +202,7 @@ class Neo4jConnector:
         """
         Update CURRENT_SENTIMENT relationship for a stock.
         Removes old relationship and creates new one pointing to latest sentiment.
-        
+
         Args:
             stock_symbol: Stock ticker symbol
             sentiment_id: UUID of the new current sentiment
@@ -212,7 +215,7 @@ class Neo4jConnector:
         MATCH (sent:Sentiment {id: $sentiment_id})
         CREATE (s)-[:CURRENT_SENTIMENT]->(sent)
         """
-        
+
         with self.driver.session(database=self.database) as session:
             session.run(query, symbol=stock_symbol, sentiment_id=sentiment_id)
             logger.info(f"Updated CURRENT_SENTIMENT for {stock_symbol}")
@@ -220,10 +223,10 @@ class Neo4jConnector:
     def get_stock_sentiment(self, symbol: str) -> Optional[Dict[str, Any]]:
         """
         Retrieve current sentiment for a stock.
-        
+
         Args:
             symbol: Stock ticker symbol
-            
+
         Returns:
             Dict with sentiment data or None if not found
         """
@@ -234,7 +237,7 @@ class Neo4jConnector:
                sent.confidence AS confidence,
                sent.timestamp AS timestamp
         """
-        
+
         with self.driver.session(database=self.database) as session:
             result = session.run(query, symbol=symbol)
             record = result.single()
@@ -254,7 +257,7 @@ class Neo4jConnector:
         RETURN a.source AS source, count(*) AS count
         ORDER BY count DESC
         """
-        
+
         with self.driver.session(database=self.database) as session:
             result = session.run(query)
             return [dict(record) for record in result]
@@ -262,11 +265,11 @@ class Neo4jConnector:
     def get_recent_articles_for_stock(self, symbol: str, limit: int = 10) -> List[Dict[str, Any]]:
         """
         Get recent articles for a specific stock.
-        
+
         Args:
             symbol: Stock ticker symbol
             limit: Maximum number of articles to return
-            
+
         Returns:
             List of article dictionaries
         """
@@ -279,7 +282,7 @@ class Neo4jConnector:
         ORDER BY a.published DESC
         LIMIT $limit
         """
-        
+
         with self.driver.session(database=self.database) as session:
             result = session.run(query, symbol=symbol, limit=limit)
             return [dict(record) for record in result]
@@ -287,50 +290,52 @@ class Neo4jConnector:
     def batch_ingest_articles(self, articles_data: List[Dict[str, Any]]) -> Dict[str, int]:
         """
         Batch ingest multiple articles with their sentiments and relationships.
-        
+
         Args:
             articles_data: List of dicts, each containing:
                 - article: Dict with url, title, summary, published, source
                 - sentiment: Dict with score, label, confidence, method
                 - stock_symbol: str
-        
+
         Returns:
             Dict with counts of created/skipped articles
         """
         stats = {'created': 0, 'skipped': 0, 'errors': 0}
-        
+
         for item in articles_data:
             try:
                 article = item['article']
                 sentiment = item['sentiment']
                 stock_symbol = item['stock_symbol']
-                
+
                 is_new = self.create_article(article)
                 if is_new:
                     sentiment_id = self.create_sentiment(sentiment)
                     self.link_article_to_stock(article['url'], stock_symbol)
-                    self.link_article_to_sentiment(article['url'], sentiment_id)
+                    self.link_article_to_sentiment(
+                        article['url'], sentiment_id)
                     self.update_current_sentiment(stock_symbol, sentiment_id)
                     stats['created'] += 1
                 else:
                     stats['skipped'] += 1
-                    
+
             except Exception as e:
                 logger.error(f"Error ingesting article: {e}")
                 stats['errors'] += 1
-        
-        logger.info(f"Batch ingestion complete - Created: {stats['created']}, Skipped: {stats['skipped']}, Errors: {stats['errors']}")
+
+        logger.info(
+            f"Batch ingestion complete - Created: {stats['created']}, Skipped: {stats['skipped']}, Errors: {stats['errors']}")
         return stats
 
     def verify_data(self) -> Dict[str, Any]:
         """
         Run verification queries to check data quality.
-        
+
         Returns:
             Dict with verification results
         """
         results = {}
-        
+
         with self.driver.session(database=self.database) as session:
             stock_sentiment_query = """
             MATCH (s:Stock)-[:CURRENT_SENTIMENT]->(sent:Sentiment)
@@ -342,7 +347,7 @@ class Neo4jConnector:
             """
             result = session.run(stock_sentiment_query)
             results['stock_sentiments'] = [dict(record) for record in result]
-            
+
             article_count_query = """
             MATCH (a:Article)
             RETURN a.source AS source, count(*) AS count
@@ -350,29 +355,29 @@ class Neo4jConnector:
             """
             result = session.run(article_count_query)
             results['article_counts'] = [dict(record) for record in result]
-            
+
             total_stocks_query = "MATCH (s:Stock) RETURN count(s) AS count"
             result = session.run(total_stocks_query)
             results['total_stocks'] = result.single()['count']
-            
+
             total_articles_query = "MATCH (a:Article) RETURN count(a) AS count"
             result = session.run(total_articles_query)
             results['total_articles'] = result.single()['count']
-        
+
         return results
 
 
 def main():
     """Test Neo4j connection and schema initialization."""
     connector = Neo4jConnector()
-    
+
     try:
         logger.info("Initializing schema...")
         connector.initialize_schema()
-        
+
         logger.info("Creating test stock...")
         connector.create_stock('NVDA', 'NVIDIA Corporation')
-        
+
         logger.info("Testing article creation...")
         test_article = {
             'url': 'https://test.com/nvda-article',
@@ -382,12 +387,12 @@ def main():
             'source': 'test'
         }
         connector.create_article(test_article)
-        
+
         logger.info("Schema initialization complete")
-        
+
         results = connector.verify_data()
         logger.info(f"Verification results: {results}")
-        
+
     finally:
         connector.close()
 
